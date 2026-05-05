@@ -1,9 +1,9 @@
 # IA901 Project — Lung Disease Classification
 
 ## Team
-- Rafael Ávila dos Santos (RA: 3000905)  
-- Letícia  
-- Sofia  
+- Rafael Ávila dos Santos (RA: 300905)  
+- Letícia Lopes Mendes Da Silva (RA: 184423)  
+- Sofia Ballerini de Vasconcellos	(RA: 299904)  
 
 ---
 
