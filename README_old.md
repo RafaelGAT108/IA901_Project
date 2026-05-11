@@ -36,7 +36,7 @@ project_root/
 │   ├── audio_analysis.ipynb
 │   └── pre_processing.ipynb
 │
-└── README.md
+└── README_old.md
 ```
 
 
