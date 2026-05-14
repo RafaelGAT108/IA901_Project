@@ -1,9 +1,9 @@
 # IA901 Project — Lung Disease Classification
 
 ## Team
-- Rafael Ávila dos Santos (RA: 300905)  
-- Letícia Lopes Mendes Da Silva (RA: 184423)  
-- Sofia Ballerini de Vasconcellos	(RA: 299904)  
+- Rafael Ávila dos Santos (RA: 300905)
+- Letícia Lopes Mendes Da Silva (RA: 184423)
+- Sofia Ballerini de Vasconcellos	(RA: 299904)
 
 ---
 
@@ -12,6 +12,25 @@ This project focuses on **lung disease classification from respiratory audio sig
 We use signal processing techniques to generate different audio representations (e.g., spectrograms, MFCCs) that support analysis and downstream modeling.
 
 The dataset used is the well-known **ICBHI Respiratory Sound Database**.
+
+---
+## Python environment
+
+Create and activate the Conda environment from `environment.yml`:
+
+```bash
+conda env create -f environment.yml
+conda activate lung_sounds
+```
+
+Alternatively, you can use a standard Python virtual environment (`venv`):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
 
 ---
 

@@ -2,3 +2,6 @@
 .idea
 raw_data
 ICBHI_final_database
+
+# Ignore all files on "data" folder
+data/*
