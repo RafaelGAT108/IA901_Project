@@ -5,3 +5,7 @@ ICBHI_final_database
 
 # Ignore all files on "data" folder
 data/*
+
+# Pycache and other Python cache files
+__pycache__/
+*.pyc
