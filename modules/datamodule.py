@@ -16,8 +16,7 @@ import torch
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from torch.utils.data.sampler import WeightedRandomSampler
 
-from dataset import FraiwanDataset, ICBHIDataset
-from dataset.labels import DIAGNOSIS
+from modules.dataset import FraiwanDataset, ICBHIDataset, DIAGNOSIS
 from dataset.transforms import (
     CQTSpectrogramTransform,
     ChromaTransform,

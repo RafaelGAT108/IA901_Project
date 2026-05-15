@@ -4,7 +4,7 @@ import pytorch_lightning as L
 from torch import nn, optim
 from sklearn.metrics import classification_report
 
-from dataset.labels import DIAGNOSIS
+from modules.dataset import DIAGNOSIS
 from modules.model import load_model
 
 
