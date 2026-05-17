@@ -1,9 +1,15 @@
+"""
+Module for handling audio data, including loading and visualization.
+
+The features can be obtained using the `transforms` module, which
+includes various feature extraction techniques (e.g. spectrograms, MFCCs, etc).
+"""
+
 from pathlib import Path
+import librosa
 import numpy as np
 import matplotlib.pyplot as plt
-import librosa
-import librosa.display
-import torch
+from matplotlib.collections import QuadMesh
 
 
 class LungSound():
@@ -12,8 +18,8 @@ class LungSound():
     """
     def __init__(self, file_path):
         self.wav_file = Path(file_path)
-        self.audio: np.ndarray | torch.Tensor | None = None
-        self.features: np.ndarray | torch.Tensor | None = None
+        self.audio: np.ndarray | None = None
+        self.features: np.ndarray | None = None
         self.feature_extractor: str | None = None
         self.sr: int | None = None
         self.load()
@@ -61,21 +67,24 @@ class LungSound():
         else:
             ax.set_title(title)
 
-    def plot_features(self, title=None, y_axis=None, ax=None):
+    def plot_features(self, title=None, ax=None, **params) -> QuadMesh:
         """
         Plot the extracted features (spectrogram representation).
         Args:
             title: Plot title.
-            y_axis: Y-axis scale (e.g. 'log' for spectrograms).
             ax: Matplotlib axis to plot on. If None, creates a new figure.
+            **params: Additional parameters to pass to librosa.display.specshow.
+        Returns:
+            The QuadMesh object created by librosa.display.specshow.
         """
         if not self.has_features:
             raise ValueError("No features to plot. Please extract features first.")
         if title is None:
             title = self.wav_file.name
-        librosa.display.specshow(self.features, sr=self.sr, x_axis='time', y_axis=y_axis, ax=ax)
+        img = librosa.display.specshow(self.features, sr=self.sr, ax=ax, **params)
         if ax is None:
             plt.title(title)
             plt.show()
         else:
             ax.set_title(title)
+        return img

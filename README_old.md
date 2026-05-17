@@ -23,6 +23,12 @@ conda env create -f environment.yml
 conda activate lung_sounds
 ```
 
+To update:
+
+```bash
+conda env update -f environment.yml --prune
+```
+
 Alternatively, you can use a standard Python virtual environment (`venv`):
 
 ```bash
