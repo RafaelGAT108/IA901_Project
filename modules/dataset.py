@@ -120,9 +120,6 @@ class LungSoundDataset(Dataset):
         self.data["Diagnosis"] = self.data["Diagnosis"].str.lower().map(DIAGNOSIS_MAP)
         # Filter to only include samples with diagnoses in our classes list
         self.data = self.data[self.data["Diagnosis"].isin(self.classes)]
-        # Update attributes to keep only the classes actually present in the dataset
-        self.classes = sorted(self.data["Diagnosis"].unique().tolist())
-        self.labels = {diag: idx for idx, diag in enumerate(self.classes)}
         # Map diagnosis to label indices
         self.data["Label"] = self.data["Diagnosis"].map(self.labels)
         # Reset index after filtering

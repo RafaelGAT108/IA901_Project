@@ -79,7 +79,7 @@ class Compose(AudioTransform):
 # ============================================================
 
 
-class Normalize(AudioTransform):
+class NormalizeAudio(AudioTransform):
     """
     Normalize waveform amplitude to [-1, 1].
     """
@@ -224,7 +224,7 @@ class Spectrogram(FeatureExtractor):
     """
     Standard magnitude spectrogram in dB scale.
     """
-    def __init__(self, n_fft: int = 2048, hop_length: int = 512):
+    def __init__(self, n_fft: int = 2048, hop_length: int | None = None):
         """
         Initializes the Spectrogram feature extractor.
         Args:
