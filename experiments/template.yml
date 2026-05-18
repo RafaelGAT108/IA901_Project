@@ -1,0 +1,54 @@
+
+# Description: Template for experiment configuration file.
+# Configure this file according to your training environment.
+
+# General settings
+project: "${project_name}"              # WandB project
+experiment: "${experiment_name}"        # WandB run
+sufix: "${experiment_suffix}"           # Suffix for the experiment name (e.g., "-{epoch}-{val_loss:.3f}-{val_f1_macro:.3f}-{val_f1_micro:.3f}")
+accelerator: "${accelerator_type}"      # e.g., "gpu", "cpu", "tpu"
+devices: "${device_list}"               # List of device indices (e.g., [0], [0, 1, 2])
+precision: "${precision_type}"          # e.g., "16", "32", "16-mixed"
+set_float32_matmul_precision: "${matmul_precision}"  # Set matmul precision for better performance on newer GPUs. Values can be "highest" (default), "high", or "medium".
+
+# Callbacks
+checkpoint_monitor: "${checkpoint_metric}"  # Metric to monitor for saving checkpoints
+checkpoint_mode: "${checkpoint_mode}"       # e.g., "max", "min"
+early_stop_monitor: "${early_stop_metric}"  # Metric to monitor for early stopping
+early_stop_mode: "${early_stop_mode}"       # e.g., "max", "min"
+patience: ${early_stop_patience}            # Number of consecutive epochs to wait before stopping
+
+# Training settings
+seed: ${random_seed}
+batch_size: ${batch_size}
+num_workers: ${num_workers}
+max_epochs: ${num_epochs}
+loss: "${loss_function}"
+optimizer: "${optimizer_type}"
+lr_scheduler: "${lr_scheduler_type}"
+learning_rate: ${learning_rate}
+weight_decay: ${weight_decay}
+step_size: ${step_size}
+gamma: ${gamma}
+momentum: ${momentum}
+
+# Model settings
+model:
+  architecture: "${model_architecture}" # cnn or transformer
+  name: "${model_name}"                 # ResNets, EfficientNets, ViT
+  weights: "${model_weights}"           # None or model weights name (e.g., "IMAGENET1K_v1")
+  method: "${training_method}"          # fine_tuning or feature_extraction
+  freeze_layers: ${freeze_layers}       # true or false
+
+# Data settings
+datasets:
+  subset: ${dataset_subset}   # None or float between 0 and 1
+  name: ${dataset_name}       # ICBHI, KAUH, combined
+  classes: ${class_names}     # List of the selected class names (e.g., ["Healthy", "Pneumonia", "Bronchitis"])
+  oversample: ${oversample}   # true or false
+
+# Transformations
+# Define the transformations to be applied to the dataset.
+# All transformations must be a FeatureExtractor class from modules.transforms.
+transforms:
+  - Spectrogram: {}

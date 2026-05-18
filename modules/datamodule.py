@@ -1,33 +1,46 @@
-import os
-from typing import Any
-
-import numpy as np
-import lightning as L
+"""
+Lung Sound Classification DataModule using PyTorch Lightning.
+"""
 import torch
+import lightning as L
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
+from typing import Any
 
-from modules.dataset import FraiwanDataset, ICBHIDataset, CombinedLungSoundDataset, LungSoundDataset, DIAGNOSIS
+from modules.dataset import KAUHDataset, ICBHIDataset, CombinedLungSoundDataset, LungSoundDataset, DIAGNOSIS
 import modules.transforms as T
 
 class LungSoundDataModule(L.LightningDataModule):
-    """PyTorch Lightning DataModule for lung sound datasets."""
+    """ PyTorch Lightning DataModule for lung sound datasets. """
 
     def __init__(self, config: dict, data_path: str) -> None:
         """
         Initialize the DataModule.
         Args:
-            config (dict): Configuration dictionary.
+            config (dict): Configuration dictionary. Expected keys include:
+            ```
+            - dataset: {
+                - name (str): Name of the dataset to use (e.g. "ICBHI", "KAUH", "combined").
+                - classes (list[str]): List of class names to include in the dataset. If not provided, defaults to all classes.
+                - num_channels (int): Number of channels of the features.
+            }
+            - batch_size (int): Batch size for the dataloaders.
+            - num_workers (int): Number of worker processes for data loading.
+            - sampler (str): Type of sampler to use for the training dataloader (e.g. "equalizer"). If None, no sampler is used.
+            - seed (int): Random seed for reproducibility.
+            - transforms (dict): Dictionary of transformations for each split (train, val, test). Each value can be either a Compose object or a list of transformations.
+            ```
             data_path (str): Path to the data directory.
         """
         super().__init__()
         self.AVAILABLE_DATASETS = {
-            "icbhi": ICBHIDataset,
-            "fraiwan": FraiwanDataset,
+            "ICBHI": ICBHIDataset,
+            "KAUH": KAUHDataset,
             "combined": CombinedLungSoundDataset,
         }
 
         # Load dataset configurations
+        self.config = config
         dataset_config = config.get("dataset", {})
         dataset_name = dataset_config.get("name")
         if dataset_name not in self.AVAILABLE_DATASETS:
@@ -36,6 +49,7 @@ class LungSoundDataModule(L.LightningDataModule):
         self.data_path = data_path
         self.dataset_class: type[LungSoundDataset] = self.AVAILABLE_DATASETS[dataset_name]
         self.classes = dataset_config.get("classes", DIAGNOSIS)
+        self.num_channels = dataset_config.get("num_channels", 1)
 
         # General configurations
         self.batch_size = config.get("batch_size", 16)
@@ -44,11 +58,7 @@ class LungSoundDataModule(L.LightningDataModule):
         self.seed = config.get("seed", 42)
 
         # Load transformations
-        self.transforms = {
-            "train": self.get_transforms(config, "train"),
-            "val": self.get_transforms(config, "val"),
-            "test": self.get_transforms(config, "test"),
-        }
+        self.transforms = self.get_transforms(config)
 
 
     def setup(self, stage: str | None = None) -> None:
@@ -65,36 +75,27 @@ class LungSoundDataModule(L.LightningDataModule):
         return self.dataset_class(
             root=self.data_path,
             split=split,
-            transform=self.transforms[split],
+            transform=self.transforms,
             classes=self.classes
         )
 
 
     @staticmethod
-    def get_transforms(config: dict, split: str) -> Any:
-        """ Load the transformations for a given split based on the configuration. """
+    def get_transforms(config: dict) -> Any:
+        """ Load the transformations from the configuration. """
         transformations = config.get("transforms", {})
-        if not isinstance(transformations, dict):
-            raise ValueError("Transforms configuration must be a dictionary with splits as keys.")
-        if split not in transformations:
-            raise ValueError(f"Transforms for split '{split}' not found in configuration.")
-        if isinstance(transformations[split], T.Compose):
-            return transformations[split]
-        if isinstance(transformations[split], list):
-            try:
-                compose = T.Compose(transformations[split])
-                return compose
-            except Exception as e:
-                print(f"Error creating transforms for split '{split}': {e}")
-                pass
-        operations = []
-        for transform in config["transforms"][split]:
-            for name, params in transform.items():
-                transform_class = getattr(T, name, None)
-                if transform_class is None:
-                    raise ValueError(f"Transform '{name}' not found in modules.transforms.")
-                operations.append(transform_class(**params))
-        return T.Compose(operations)
+        if isinstance(transformations, T.Compose):
+            return transformations
+        if isinstance(transformations, list):
+            operations = []
+            for transform in config["transforms"]:
+                for name, params in transform.items():
+                    transform_class = getattr(T, name, None)
+                    if transform_class is None:
+                        raise ValueError(f"Transform '{name}' not found in modules.transforms.")
+                    operations.append(transform_class(**params))
+            return T.Compose(operations)
+        raise ValueError("Transforms must be either a Compose object or a list of transformations.")
 
 
     @staticmethod
@@ -165,7 +166,11 @@ class LungSoundDataModule(L.LightningDataModule):
         batch_labels = []
         for sample, label in batch:
             if not isinstance(sample.features, torch.Tensor):
+                # Convert features to tensor if they are not already
                 sample.features = torch.tensor(sample.features, dtype=torch.float32)
+            if sample.features.ndim == 2:
+                # Add channel dimension for 2D features (e.g. spectrograms)
+                sample.features = sample.features.unsqueeze(0)
             batch_samples.append(sample.features)
             batch_labels.append(label)
         return torch.stack(batch_samples), torch.tensor(batch_labels, dtype=torch.long)
@@ -179,8 +184,12 @@ class LungSoundDataModule(L.LightningDataModule):
         batch_paths = []
         for sample, label in batch:
             if not isinstance(sample.features, torch.Tensor):
+                # Convert features to tensor if they are not already
                 sample.features = torch.tensor(sample.features, dtype=torch.float32)
+            if sample.features.ndim == 2:
+                # Add channel dimension for 2D features (e.g. spectrograms)
+                sample.features = sample.features.unsqueeze(0)
             batch_samples.append(sample.features)
             batch_labels.append(label)
-            batch_paths.append(sample.wav_file)
+            batch_paths.append(str(sample.wav_file))
         return torch.stack(batch_samples), torch.tensor(batch_labels, dtype=torch.long), batch_paths

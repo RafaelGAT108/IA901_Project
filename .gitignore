@@ -3,8 +3,10 @@
 raw_data
 ICBHI_final_database
 
-# Ignore all files on "data" folder
 data/*
+logs/*
+checkpoints/*
+results/*
 
 # Pycache and other Python cache files
 __pycache__/

@@ -1,48 +1,75 @@
-# Classifier module using PyTorch Lightning.
+"""
+Lung Sound Classification Module using PyTorch Lightning.
+"""
 import torch
-import pytorch_lightning as L
+import lightning as L
 from torch import nn, optim
+from torchmetrics.classification import F1Score, Accuracy
 from sklearn.metrics import classification_report
 
-from modules.dataset import DIAGNOSIS
 from modules.model import load_model
 
 
-class Classifier(L.LightningModule):
-    """PyTorch Lightning module for lung sound classification."""
+class LungSoundClassifier(L.LightningModule):
+    """ PyTorch Lightning module for lung sound classification. """
     def __init__(self, config: dict) -> None:
         """
         Initialize model and other parameters.
         Args:
-            config (dict): Configuration dictionary.
+            config (dict): Configuration dictionary. Expected keys include:
+            ```
+            - model: {
+                - name (str): Name of the model to load (e.g. "resnet18").
+                - architecture (str): Architecture of the model (e.g. "cnn").
+                - pretrained (str, optional): Pre-trained weights to load. Defaults to None.
+                - freeze_layers (bool): Whether to freeze the layers of the pre-trained model. Defaults to False.
+            }
+            - dataset: {
+                - classes (list[str]): List of class names in the dataset.
+                - num_channels (int): Number of channels in the input data.
+            }
+            - criterion (str): Loss function to use (e.g. "CrossEntropyLoss").
+            - optimizer (str): Optimizer to use (e.g. "AdamW").
+            - learning_rate (float): Learning rate for the optimizer.
+            - weight_decay (float): Weight decay for the optimizer (if applicable).
+            - momentum (float): Momentum for the optimizer (if applicable).
+            - lr_scheduler (str, optional): Learning rate scheduler to use (e.g. "StepLR"). If None, no scheduler is used. Defaults to None.
+            - step_size (int): Step size for the learning rate scheduler (if applicable).
+            - gamma (float): Gamma for the learning rate scheduler (if applicable).
+            ```
         """
         super().__init__()
         self.save_hyperparameters(config)
 
         # Load model
-        self.classes = list(DIAGNOSIS.keys())
+        self.classes = self.hparams.dataset["classes"]
         num_classes = len(self.classes)
+        num_channels = self.hparams.dataset["num_channels"]
         model_name = self.hparams.model["name"]
         model_architecture = self.hparams.model["architecture"]
-        weights = self.hparams.model.get("weights", None)
-        freeze_layers = self.hparams.model.get("freeze_layers", False)
+        pretrained = self.hparams.model["pretrained"]
+        freeze_layers = self.hparams.model["freeze_layers"]
+        self.model = load_model(model_architecture, model_name, num_channels, num_classes, pretrained, freeze_layers)
 
-        self.model = load_model(model_architecture, model_name, num_classes, weights, freeze_layers)
-        self.is_transformer = "transformer" in model_architecture
+        # Configure loss function
+        self.configure_loss()
 
-        # Define loss function
-        self.criterion = nn.CrossEntropyLoss()
+        # Configure metrics
+        self.train_f1_macro = F1Score(task="multiclass", num_classes=num_classes, average="macro")
+        self.train_f1_micro = F1Score(task="multiclass", num_classes=num_classes, average="micro")
+        self.train_acc = Accuracy(task="multiclass", num_classes=num_classes)
+        self.val_f1_macro = F1Score(task="multiclass", num_classes=num_classes, average="macro")
+        self.val_f1_micro = F1Score(task="multiclass", num_classes=num_classes, average="micro")
+        self.val_acc = Accuracy(task="multiclass", num_classes=num_classes)
+        self.test_f1_macro = F1Score(task="multiclass", num_classes=num_classes, average="macro")
+        self.test_f1_micro = F1Score(task="multiclass", num_classes=num_classes, average="micro")
+        self.test_acc = Accuracy(task="multiclass", num_classes=num_classes)
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """ Forward pass. """
-        if x.ndim == 3:
-            x = x.unsqueeze(1)
-        if self.is_transformer:
-            if x.shape[1] == 1:
-                x = x.repeat(1, 3, 1, 1)
-            return self.model(pixel_values=x).logits
-        else:
-            return self.model(x)
+        return self.model(x)
+
 
     def configure_optimizers(self) -> tuple[list, list] | optim.Optimizer:
         """ Configure optimizer and learning rate scheduler. """
@@ -55,9 +82,9 @@ class Classifier(L.LightningModule):
         sch = self.hparams.lr_scheduler
         lr = self.hparams.learning_rate
         wd = self.hparams.weight_decay
+        mtm = self.hparams.momentum
         step = self.hparams.step_size
         gamma = self.hparams.gamma
-        mtm = self.hparams.momentum
 
         if opt == "AdamW":
             optimizer = optim.AdamW(params, lr=lr, weight_decay=wd)
@@ -77,52 +104,65 @@ class Classifier(L.LightningModule):
 
         return [optimizer], [lr_scheduler]
 
-    def on_train_epoch_start(self) -> None:
-        """ Called at the start of the training epoch. """
-        self.skipped_on_train = 0
+
+    def configure_loss(self):
+        """ Configure loss function. """
+        if self.hparams.criterion == "CrossEntropyLoss":
+            self.criterion = nn.CrossEntropyLoss()
+        else:
+            raise ValueError(f"Invalid loss function: {self.hparams.criterion}.")
+
 
     def training_step(self, batch, batch_idx):
         """ Training step for Pytorch Lightning. """
-        if batch is None:
-            self.skipped_on_train += 1
-            return None
         inputs, labels = batch
         labels = labels.to(dtype=torch.long)
         outputs = self(inputs)
         loss = self.criterion(outputs, labels)
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+    
+        # Log metrics
+        self.train_f1_macro(outputs, labels)
+        self.train_f1_micro(outputs, labels)
+        self.train_acc(outputs, labels)
+        self.log("train_f1_macro", self.train_f1_macro, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_f1_micro", self.train_f1_micro, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_acc", self.train_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
-    def on_train_epoch_end(self) -> None:
-        """ Called at the end of the training epoch. """
-        self.log("skipped_on_train", self.skipped_on_train, on_step=False, on_epoch=True, prog_bar=False)
 
     def on_validation_epoch_start(self) -> None:
         """ Called at the start of the validation epoch. """
-        self.skipped_on_val = 0
-        self.validation_results = {"preds": [], "labels": []}
+        self.validation_results = {"preds": [], "targets": []}
+
 
     def validation_step(self, batch, batch_idx):
         """ Validation step for Pytorch Lightning. """
-        if batch is None:
-            self.skipped_on_val += 1
-            return None
         inputs, labels = batch
         labels = labels.to(dtype=torch.long)
         outputs = self(inputs)
         loss = self.criterion(outputs, labels)
-        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+
+        # Log metrics
+        self.val_f1_macro(outputs, labels)
+        self.val_f1_micro(outputs, labels)
+        self.val_acc(outputs, labels)
+        self.log("val_f1_macro", self.val_f1_macro, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val_f1_micro", self.val_f1_micro, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val_acc", self.val_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
 
         # Store results
         preds = torch.argmax(outputs, dim=1)
         self.validation_results["preds"].extend(preds.detach().cpu().tolist())
-        self.validation_results["labels"].extend(labels.detach().cpu().tolist())
+        self.validation_results["targets"].extend(labels.detach().cpu().tolist())
         return loss
+
 
     def on_validation_epoch_end(self):
         """ Called at the end of the validation epoch. """
         preds = self.validation_results["preds"]
-        labels = self.validation_results["labels"]
+        labels = self.validation_results["targets"]
 
         # Generate classification report
         report = classification_report(
@@ -138,44 +178,53 @@ class Classifier(L.LightningModule):
         metrics = {}
         for class_name in self.classes:
             metrics[f"val_{class_name}_f1"] = report[class_name]["f1-score"]
+        metrics["val_accuracy"] = report["accuracy"]
         metrics["val_macro_f1"] = report["macro avg"]["f1-score"]
         metrics["val_weighted_f1"] = report["weighted avg"]["f1-score"]
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False)
 
-        self.log("skipped_on_val", self.skipped_on_val, on_step=False, on_epoch=True, prog_bar=False)
 
     def on_test_epoch_start(self) -> None:
         """ Called at the start of the test epoch. """
-        self.skipped_on_test = 0
-        self.test_results = {"probs": [], "preds": [], "labels": [], "metadata": []}
+        self.test_results = {"probs": [], "preds": [], "targets": [], "info": []}
+
 
     def test_step(self, batch, batch_idx):
         """ Test step for Pytorch Lightning. """
-        if batch is None:
-            self.skipped_on_test += 1
-            return None
-        inputs, labels, metadata = batch
+        inputs, labels, info = batch
         labels = labels.to(dtype=torch.long)
         outputs = self(inputs)
         loss = self.criterion(outputs, labels)
-        preds = torch.argmax(outputs, dim=1)
+        self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+
+        # Log metrics
+        self.test_f1_macro(outputs, labels)
+        self.test_f1_micro(outputs, labels)
+        self.test_acc(outputs, labels)
+        self.log("test_f1_macro", self.test_f1_macro, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test_f1_micro", self.test_f1_micro, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test_acc", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
 
         # Store results
+        probs = torch.softmax(outputs, dim=1)
+        preds = torch.argmax(outputs, dim=1)
+        self.test_results["probs"].extend(probs.detach().cpu().tolist())
         self.test_results["preds"].extend(preds.detach().cpu().tolist())
-        self.test_results["labels"].extend(labels.detach().cpu().tolist())
-        self.test_results["metadata"].extend(metadata)
+        self.test_results["targets"].extend(labels.detach().cpu().tolist())
+        self.test_results["info"].extend(info)
         return loss
+
 
     def on_test_epoch_end(self):
         """ Called at the end of the test epoch. """
         preds = self.test_results["preds"]
-        labels = self.test_results["labels"]
+        targets = self.test_results["targets"]
 
         # Generate classification report
         report = classification_report(
-            labels,
-            preds,
+            y_true=targets,
+            y_pred=preds,
             output_dict=True,
             target_names=self.classes,
             labels=list(range(len(self.classes))),
@@ -188,8 +237,7 @@ class Classifier(L.LightningModule):
             metrics[f"test_{class_name}_precision"] = report[class_name]["precision"]
             metrics[f"test_{class_name}_recall"] = report[class_name]["recall"]
             metrics[f"test_{class_name}_f1"] = report[class_name]["f1-score"]
+        metrics["test_accuracy"] = report["accuracy"]
         metrics["test_macro_f1"] = report["macro avg"]["f1-score"]
         metrics["test_weighted_f1"] = report["weighted avg"]["f1-score"]
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False)
-
-        self.log("skipped_on_test", self.skipped_on_test, on_step=False, on_epoch=True, prog_bar=False)

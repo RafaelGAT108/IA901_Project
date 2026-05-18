@@ -19,9 +19,9 @@ Examples:
     >>> print(lung_sound.features.shape)
 """
 
+import copy
 import librosa
 import numpy as np
-import pandas as pd
 from abc import ABC, abstractmethod
 from modules.audio import LungSound
 
@@ -45,13 +45,6 @@ class FeatureExtractor(ABC):
         pass
 
 
-class DatasetTransform(ABC):
-    """ Base class for transforms that operate on the full dataset. """
-    @abstractmethod
-    def modify_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        pass
-
-
 class Compose(AudioTransform):
     """
     Compose multiple transforms sequentially.
@@ -63,7 +56,7 @@ class Compose(AudioTransform):
     ...     MelSpectrogram(),
     ... ])
     """
-    def __init__(self, transforms: list[AudioTransform | FeatureExtractor | DatasetTransform]):
+    def __init__(self, transforms: list[AudioTransform | FeatureExtractor]):
         self.name = "Compose"
         self.transforms = transforms
 
@@ -76,6 +69,7 @@ class Compose(AudioTransform):
 # ============================================================
 # Waveform transforms
 # 1D -> 1D (audio -> audio)
+# 1 sample -> 1 sample OR 1 sample -> N samples
 # ============================================================
 
 
@@ -83,10 +77,6 @@ class NormalizeAudio(AudioTransform):
     """
     Normalize waveform amplitude to [-1, 1].
     """
-    def __init__(self):
-        """ Initializes the Normalize transform. """
-        self.name = "Normalize"
-
     def __call__(self, lung_sound: LungSound) -> LungSound:
         audio = lung_sound.audio
         # lung_sound.audio = librosa.util.normalize(audio, axis=None)
@@ -105,7 +95,6 @@ class Resample(AudioTransform):
         Args:
             target_sr: Target sample rate in Hz.
         """
-        self.name = "Resample"
         self.target_sr = target_sr
 
     def __call__(self, lung_sound: LungSound) -> LungSound:
@@ -128,7 +117,6 @@ class PadOrTrim(AudioTransform):
         Args:
             target_duration: Target duration in seconds.
         """
-        self.name = "PadOrTrim"
         self.target_duration = target_duration
 
     def __call__(self, lung_sound: LungSound) -> LungSound:
@@ -154,7 +142,6 @@ class Crop(AudioTransform):
             start_time: Start time of the crop in seconds.
             end_time: End time of the crop in seconds.
         """
-        self.name = "Crop"
         self.start_time = start_time
         self.end_time = end_time
 
@@ -168,51 +155,33 @@ class Crop(AudioTransform):
         return lung_sound
 
 
-# ============================================================
-# Dataset-level transforms
-# Apply transformations not only to the audio but also to
-# the entire dataset structure.
-# ============================================================
-
-class Window(DatasetTransform):
+class Window(AudioTransform):
     """
-    Split audio into fixed-length windows.
-    This is a dataset-level transform that expands the dataframe with new rows for each window.
+    Split the audio into N windows of fixed duration.
+    1 sample -> N samples (e.g. one long audio -> multiple 5-second crops)
     """
-    def __init__(self, window_length: float, hop_length: float | None = None):
+    def __init__(self, window_length: float, hop_length: float):
         """
         Initializes the Window transform.
         Args:
-            window_length: Length of each window in seconds.
-            hop_length: Hop length between windows in seconds. If None, defaults to window_length (non-overlapping windows).
+            window_length: Length of the window in seconds.
+            hop_length: Hop length between windows in seconds.
         """
-        self.name = "Window"
         self.window_length = window_length
-        self.hop_length = hop_length or window_length
+        self.hop_length = hop_length
 
-    def modify_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        records = []
-        for _, row in df.iterrows():
-            duration = row["AudioDuration"]
-            start = 0.0
-            end = start + self.window_length
-            while end <= duration:
-                new_row = row.to_dict()
-                new_row["Start"] = start
-                new_row["End"] = end
-                records.append(new_row)
-                start += self.hop_length
-                end += self.hop_length
-        return pd.DataFrame(records)
-
-    def __call__(self, lung_sound: LungSound) -> LungSound:
-        # Check if windowing parameters are set
-        start = lung_sound.window_start
-        end = lung_sound.window_end
-        if start is None or end is None:
-            return lung_sound  # No windowing applied
-        return Crop(start_time=start, end_time=end)(lung_sound)
-
+    def __call__(self, lung_sound: LungSound) -> list[LungSound]:
+        duration = lung_sound.duration
+        start = 0.0
+        end = start + self.window_length
+        crops = []
+        while end <= duration:
+            cropped = copy.deepcopy(lung_sound)
+            cropped = Crop(start_time=start, end_time=end)(cropped)
+            crops.append(cropped)
+            start += self.hop_length
+            end += self.hop_length
+        return crops
 
 # ============================================================
 # Feature extractors
@@ -250,17 +219,17 @@ class MelSpectrogram(FeatureExtractor):
     """
     Mel spectrogram in dB scale.
     """
-    def __init__(self, n_mels: int = 128, n_fft: int = 2048, hop_length: int = 512):
+    def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_mels: int = 128):
         """
         Initializes the MelSpectrogram feature extractor.
         Args:
-            n_mels: Number of Mel bands to generate.
             n_fft: Length of the FFT window in samples.
             hop_length: Number of samples between successive frames.
+            n_mels: Number of Mel bands to generate.
         """
-        self.n_mels = n_mels
         self.n_fft = n_fft
         self.hop_length = hop_length
+        self.n_mels = n_mels
 
     def __call__(self, lung_sound: LungSound) -> LungSound:
         mel_spec = librosa.feature.melspectrogram(
@@ -279,18 +248,24 @@ class MFCC(FeatureExtractor):
     """
     Mel-frequency cepstral coefficients.
     """
-    def __init__(self, n_mfcc: int = 20):
+    def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_mfcc: int = 20):
         """
         Initializes the MFCC feature extractor.
         Args:
+            n_fft: Length of the FFT window in samples.
+            hop_length: Number of samples between successive frames.
             n_mfcc: Number of MFCC coefficients to compute.
         """
+        self.n_fft = n_fft
+        self.hop_length = hop_length
         self.n_mfcc = n_mfcc
 
     def __call__(self, lung_sound: LungSound) -> LungSound:
         lung_sound.features = librosa.feature.mfcc(
             y=lung_sound.audio,
             sr=lung_sound.sr,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
             n_mfcc=self.n_mfcc
         )
         lung_sound.feature_extractor = self
@@ -301,18 +276,24 @@ class MFCCDelta(FeatureExtractor):
     """
     Temporal derivative of MFCC coefficients.
     """
-    def __init__(self, n_mfcc: int = 20):
+    def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_mfcc: int = 20):
         """
         Initializes the MFCCDelta feature extractor.
         Args:
+            n_fft: Length of the FFT window in samples.
+            hop_length: Number of samples between successive frames.
             n_mfcc: Number of MFCC coefficients to compute before taking the delta.
         """
+        self.n_fft = n_fft
+        self.hop_length = hop_length
         self.n_mfcc = n_mfcc
 
     def __call__(self, lung_sound: LungSound) -> LungSound:
         mfcc = librosa.feature.mfcc(
             y=lung_sound.audio,
             sr=lung_sound.sr,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
             n_mfcc=self.n_mfcc
         )
         lung_sound.features = librosa.feature.delta(mfcc)
@@ -324,10 +305,28 @@ class Chroma(FeatureExtractor):
     """
     Chroma spectrogram.
     """
+    def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_chroma: int = 12):
+        """
+        Initializes the Chroma feature extractor.
+        Args:
+            n_fft: Length of the FFT window in samples.
+            hop_length: Number of samples between successive frames.
+            n_chroma: Number of chroma bins to generate.
+        """
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.n_chroma = n_chroma
+
     def __call__(self, lung_sound: LungSound) -> LungSound:
         stft = librosa.stft(lung_sound.audio)
         mag = np.abs(stft)
-        lung_sound.features = librosa.feature.chroma_stft(S=mag, sr=lung_sound.sr)
+        lung_sound.features = librosa.feature.chroma_stft(
+            S=mag,
+            sr=lung_sound.sr,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            n_chroma=self.n_chroma
+        )
         lung_sound.feature_extractor = self
         return lung_sound
 

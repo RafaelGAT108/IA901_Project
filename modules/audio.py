@@ -23,11 +23,6 @@ class LungSound():
         self.feature_extractor: str | None = None
         self.sr: int | None = None
         self.load()
-        # NOTE: In case we want to apply windowing, we can store the start and end
-        # times of the current window in respect to the original audio file
-        # This is handled by the `preprocess` module
-        self.window_start = None
-        self.window_end = None
 
     @property
     def duration(self) -> float | None:

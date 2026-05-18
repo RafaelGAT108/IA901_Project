@@ -3,7 +3,7 @@ Dataset module for loading and handling lung sound datasets.
 
 Defines the LungSoundDataset class and its subclasses for loading:
     - ICBHI Challenge (2017) respiratory sound database
-    - Fraiwan et al. (2021) respiratory sound database
+    - KAUH (2021) respiratory sound database
 
 It also includes functionality for filtering classes, preprocessing,
 and splitting the dataset into train/val/test sets.
@@ -67,7 +67,8 @@ class LungSoundDataset(Dataset):
             root: str | Path,
             split: str = "all",
             classes: list[str] = DIAGNOSIS,
-            transform: AudioTransform | FeatureExtractor | DatasetTransform | Compose | None = None,
+            transform: FeatureExtractor | Compose | None = None,
+            random_seed: int = 42,
             load_data_on_init: bool = True
         ):
         """
@@ -76,21 +77,21 @@ class LungSoundDataset(Dataset):
             root (str | Path): Root directory of the dataset.
             split (str): Dataset split. Can be "train", "val", "test", or "all". Default is "all".
             classes (list[str]): List of classes to include in the dataset. Only samples with these diagnoses will be included. Default is all classes in the DIAGNOSIS list.
-            transform (AudioTransform | FeatureExtractor | DatasetTransform | Compose | None): Optional transform pipeline to apply to each sample or the entire dataset.
+                transform (FeatureExtractor | Compose | None): Optional transform pipeline to apply to each sample.
+            random_seed (int): Random seed for reproducibility when splitting the dataset. Default is 42.
             load_data_on_init (bool): Whether to load the data immediately upon initialization. Set to False if you want to delay loading.
         """
         self.root = Path(root)
         self.split = split
         self.transform = transform
+        self.random_seed = random_seed
         self.classes = [cls_name for cls_name in classes if cls_name in DIAGNOSIS]
         self.labels = {diag: idx for idx, diag in enumerate(self.classes)}
         self.data = None
-        self.windowing = False
         if load_data_on_init:
             self._load_data()
             self._handle_classes()
-            self._handle_windowing()
-            self._split_data(train_size=0.8, val_size=0.1, test_size=0.1, seed=42)
+            self._split_data(train_size=0.8, val_size=0.1, test_size=0.1, seed=self.random_seed)
 
     def __len__(self) -> int:
         return len(self.data)
@@ -99,10 +100,6 @@ class LungSoundDataset(Dataset):
         row = self.data.iloc[idx]
         sample = LungSound(row["FilePath"])
         label = row["Label"]
-
-        if self.windowing:
-            sample.window_start = row["Start"]
-            sample.window_end = row["End"]
 
         if self.transform is not None:
             sample = self.transform(sample)
@@ -125,27 +122,7 @@ class LungSoundDataset(Dataset):
         # Reset index after filtering
         self.data.reset_index(drop=True, inplace=True)
 
-    def _handle_windowing(self) -> None:
-        """
-        Handle windowing to the dataset by expanding the DataFrame with new rows for each window.
-        """
-        self.windowing = False
-        if self.transform is None:
-            return
-        if isinstance(self.transform, Compose):
-            # Check if there is a Window transform in the preprocessing pipeline
-            for step in self.transform.transforms:
-                if isinstance(step, Window):
-                    self.data = step.modify_dataframe(self.data)
-                    self.windowing = True
-                    return
-        if isinstance(self.transform, Window):
-            self.data = self.transform.modify_dataframe(self.data)
-            self.windowing = True
-            return
-        # No windowing transform found in the preprocessing pipeline
-
-    def _split_data(self, train_size=0.8, val_size=0.1, test_size=0.1, seed=42) -> None:
+    def _split_data(self, train_size=0.8, val_size=0.1, test_size=0.1, seed=None) -> None:
         """
         Split the dataset into train/val/test sets.
         """
@@ -214,30 +191,31 @@ class ICBHIDataset(LungSoundDataset):
     def __init__(
             self,
             root: str | Path,
-            split: str,
+            split: str = "all",
             classes: list[str] = DIAGNOSIS,
-            transform: AudioTransform | FeatureExtractor | DatasetTransform | Compose | None = None,
+            transform: FeatureExtractor | Compose | None = None,
+            random_seed: int = 42,
             load_data_on_init: bool = True
         ):
         """
         Initialize the dataset.
         Args:
             root (str | Path): Root directory of the dataset.
-            split (str): Dataset split. Can be "train", "val", "test", or "all".
-            classes (list[str]): List of classes to include in the dataset. Only samples with these diagnoses will be included.
-            transform (AudioTransform | FeatureExtractor | DatasetTransform | Compose | None): Optional transform pipeline to apply to each sample or dataset.
+            split (str): Dataset split. Can be "train", "val", "test", or "all". Default is "all".
+            classes (list[str]): List of classes to include in the dataset. Only samples with these diagnoses will be included. Default is all classes in the DIAGNOSIS list.
+            transform (FeatureExtractor | Compose | None): Optional transform pipeline to apply to each sample or the entire dataset.
+            random_seed (int): Random seed for reproducibility when splitting the dataset. Default is 42.
             load_data_on_init (bool): Whether to load the data immediately upon initialization. Set to False if you want to delay loading.
         """
-        self.name = "icbhi"
-        data_dir = os.path.join(root, "ICBHI_final_database")
-        super().__init__(data_dir, split, classes, transform, load_data_on_init)
+        self.name = "ICBHI"
+        data_dir = os.path.join(root, "ICBHI_2017")
+        super().__init__(data_dir, split, classes, transform, random_seed, load_data_on_init)
 
     @staticmethod
     def parse_metadata(file_path: str) -> dict:
         """ Parse metadata from a .wav file from the ICBHI dataset. """
         wav_file_stem = Path(file_path).stem
         parts = wav_file_stem.split("_")
-        duration = librosa.get_duration(path=file_path)
 
         return {
             "PatientId": f"I{parts[0]}",
@@ -245,7 +223,6 @@ class ICBHIDataset(LungSoundDataset):
             "ChestLocation": f"{parts[2]}",
             "AcquisitionMode": f"{parts[3]}",
             "RecordingEquipment": f"{parts[4]}",
-            "AudioDuration": duration,
         }
 
     def _load_data(self) -> pd.DataFrame:
@@ -297,32 +274,34 @@ class ICBHIDataset(LungSoundDataset):
         return self.data
 
 
-class FraiwanDataset(LungSoundDataset):
-    """ Dataset for the Fraiwan et al. (2021) respiratory sound database. """
+class KAUHDataset(LungSoundDataset):
+    """ Dataset for the KAUH (2021) respiratory sound database. """
     def __init__(
             self,
             root: str | Path,
-            split: str,
-            classes: list[str],
-            transform: AudioTransform | FeatureExtractor | DatasetTransform | Compose | None = None,
+            split: str = "all",
+            classes: list[str] = DIAGNOSIS,
+            transform: FeatureExtractor | Compose | None = None,
+            random_seed: int = 42,
             load_data_on_init: bool = True
         ):
         """
         Initialize the dataset.
         Args:
             root (str | Path): Root directory of the dataset.
-            split (str): Dataset split. Can be "train", "val", "test", or "all".
-            classes (list[str]): List of classes to include in the dataset. Only samples with these diagnoses will be included.
-            transform (AudioTransform | FeatureExtractor | DatasetTransform | Compose | None): Optional transform pipeline to apply to each sample or dataset.
+            split (str): Dataset split. Can be "train", "val", "test", or "all". Default is "all".
+            classes (list[str]): List of classes to include in the dataset. Only samples with these diagnoses will be included. Default is all classes in the DIAGNOSIS list.
+            transform (FeatureExtractor | Compose | None): Optional transform pipeline to apply to each sample or the entire dataset.
+            random_seed (int): Random seed for reproducibility when splitting the dataset. Default is 42.
             load_data_on_init (bool): Whether to load the data immediately upon initialization. Set to False if you want to delay loading.
         """
-        self.name = "fraiwan"
-        data_dir = os.path.join(root, "fraiwan")
-        super().__init__(data_dir, split, classes, transform, load_data_on_init)
+        self.name = "KAUH"
+        data_dir = os.path.join(root, "KAUH_2021")
+        super().__init__(data_dir, split, classes, transform, random_seed, load_data_on_init)
 
     @staticmethod
     def parse_metadata(file_path: str) -> dict:
-        """ Parse metadata from a .wav file from the Fraiwan dataset. """
+        """ Parse metadata from a .wav file from the KAUH dataset. """
         wav_file_stem = Path(file_path).stem
 
         parts = wav_file_stem.split("_", 1)
@@ -338,7 +317,6 @@ class FraiwanDataset(LungSoundDataset):
         match = re.match(r"^([BDE])P?(\d+)$", code_part, flags=re.IGNORECASE)
         filter_code = match.group(1).upper() if match else None
         patient_num = f"P{int(match.group(2))}" if match else None
-        duration = librosa.get_duration(path=file_path)
 
         return {
             "Diagnosis": diagnosis,
@@ -348,11 +326,10 @@ class FraiwanDataset(LungSoundDataset):
             "Location": location,
             "Age": float(age),
             "Sex": sex,
-            "AudioDuration": duration,
         }
 
     def _load_data(self) -> pd.DataFrame:
-        """ Load data from the Fraiwan dataset. """
+        """ Load data from the KAUH dataset. """
         records = []
         for wav_file in self._find_wav_files():
             metadata = self.parse_metadata(wav_file)
@@ -368,13 +345,14 @@ class FraiwanDataset(LungSoundDataset):
 
 
 class CombinedLungSoundDataset(LungSoundDataset):
-    """ Dataset that combines ICBHI and Fraiwan before splitting. """
+    """ Dataset that combines ICBHI and KAUH before splitting. """
     def __init__(
             self,
             root: str | Path,
             split: str,
             classes: list[str],
-            transform: AudioTransform | FeatureExtractor | DatasetTransform | Compose | None = None,
+            transform: FeatureExtractor | Compose | None = None,
+            random_seed: int = 42,
             load_data_on_init: bool = True
         ):
         """
@@ -383,16 +361,17 @@ class CombinedLungSoundDataset(LungSoundDataset):
             root (str | Path): Root directory of the dataset.
             split (str): Dataset split. Can be "train", "val", "test", or "all".
             classes (list[str]): List of classes to include in the dataset. Only samples with these diagnoses will be included.
-            transform (AudioTransform | FeatureExtractor | DatasetTransform | Compose | None): Optional transform pipeline to apply to each sample or dataset.
+            transform (FeatureExtractor | Compose | None): Optional transform pipeline to apply to each sample or dataset.
+            random_seed (int): Random seed for reproducibility when splitting the dataset. Default is 42.
             load_data_on_init (bool): Whether to load the data immediately upon initialization. Set to False if you want to delay loading.
         """
-        super().__init__(root, split, classes, transform, load_data_on_init)
+        super().__init__(root, split, classes, transform, random_seed, load_data_on_init)
 
     def _load_data(self) -> pd.DataFrame:
-        """ Load and combine data from both ICBHI and Fraiwan datasets. """
+        """ Load and combine data from both ICBHI and KAUH datasets. """
         icbhi_dataset = ICBHIDataset(self.root, "all", self.classes, load_data_on_init=False)
         icbhi_data = icbhi_dataset._load_data()
-        fraiwan_dataset = FraiwanDataset(self.root, "all", self.classes, load_data_on_init=False)
-        fraiwan_data = fraiwan_dataset._load_data()
-        self.data = pd.concat([icbhi_data, fraiwan_data], ignore_index=True)
+        kauh_dataset = KAUHDataset(self.root, "all", self.classes, load_data_on_init=False)
+        kauh_data = kauh_dataset._load_data()
+        self.data = pd.concat([icbhi_data, kauh_data], ignore_index=True)
         return self.data

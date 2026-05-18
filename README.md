@@ -30,7 +30,7 @@ O objetivo final do projeto é utilizar sons pulmonares para classificação de 
 Base de Dados | Endereço na Web | Resumo descritivo
 ----- | ----- | -----
 ICBHI2017 | https://bhichallenge.med.auth.gr/ICBHI_2017_Challenge | Breve resumo (duas ou três linhas) sobre a base.
-Fraiwan, et. al 2021 | https://data.mendeley.com/datasets/jwyy9np4gv/3 | Breve resumo (duas ou três linhas) sobre a base.
+KAUH | https://data.mendeley.com/datasets/jwyy9np4gv/3 | Breve resumo (duas ou três linhas) sobre a base.
 
 > Forneça também o link para o "datasheet" criado para os datasets (anexado na pasta `data`, como indicado nas [instruções E2](https://github.com/Disciplinas-FEEC/IA901-2026S1/blob/main/templates/ia901-E2-instructions.md)), contendo informações mais detalhadas e sistematizadas sobre as bases de dados.
 
