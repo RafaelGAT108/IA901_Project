@@ -2,3 +2,17 @@
 .idea
 raw_data
 ICBHI_final_database
+
+.venv
+.idea
+raw_data
+ICBHI_final_database
+
+data_raw/
+data_preprocessed/
+logs/
+checkpoints/
+*.ckpt
+
+pycache__/
+*.pyc
