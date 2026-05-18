@@ -87,7 +87,7 @@ This step will:
 After preprocessing, the data will be organized like:
 
 ```bash
-processed_data/
+processed_data_ICBHI/
 ├── mel_spectrogram/
 ├── mfcc/
 ├── stft/
