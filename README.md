@@ -152,7 +152,7 @@ Também pretende-se utilizar o **TensorBoard** para monitoramento dos experiment
 > Lembre-se que o objetivo de desenhar o workflow é ajudar a quem quiser reproduzir seus experimentos.
 > Mais informações sobre o workflow podem ser encontradas nos materiais de apoio no Classroom (Reprodutibilidade em pesquisa computacional - workflow).
 
-
+![workflow](workflow.png)
 
 
 
