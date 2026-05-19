@@ -195,7 +195,147 @@ Também pretende-se utilizar o **TensorBoard** para monitoramento dos experiment
 > Aponte os problemas encontrados nas soluções testadas até aqui.
 
 > ### Análise Exploratória
-- 
+- O conjunto de dados é composto por arquivos de áudio respiratórios no formato `.wav`, organizados em pastas por classe clínica. Ao longo do projeto, foram exploradas as distribuições das durações dos áudios e realizadas etapas de pré-processamento para padronização dos sinais, com o objetivo de preparar os dados para futuras tarefas de classificação automática.
+
+#Objetivos
+
+- Explorar a distribuição temporal dos áudios presentes no dataset;
+- Investigar o desbalanceamento entre as classes;
+- Padronizar os sinais de áudio;
+- Extrair características espectrais e temporais;
+- Gerar visualizações para análise qualitativa dos sinais respiratórios.
+
+---
+
+# Análise da Distribuição das Durações
+
+Inicialmente, foi realizada uma análise exploratória da distribuição das durações dos sinais de áudio presentes no dataset. O processamento percorre todas as classes respiratórias, identifica os arquivos `.wav` e calcula a duração de cada gravação utilizando a biblioteca `Librosa`.
+
+As informações obtidas permitem compreender a variabilidade temporal dos sinais e auxiliar na definição de estratégias de pré-processamento.
+
+#Estatísticas Gerais
+
+- **Total de áudios:** 920
+- **Duração mínima:** 7,86 s
+- **Duração máxima:** 86,20 s
+- **Duração média:** 21,49 s
+
+# Distribuição Geral das Durações
+
+![Distribuição das durações](results/distribution_duration.png)
+
+A distribuição das durações evidencia uma concentração predominante de amostras próximas de 20 segundos. Entretanto, também existem gravações significativamente menores e maiores que a média observada no conjunto de dados.
+
+Essa heterogeneidade temporal pode impactar diretamente o treinamento de modelos de aprendizado profundo, uma vez que entradas com comprimentos distintos dificultam a padronização do processo de treinamento.
+
+Como possíveis soluções, podem ser consideradas:
+
+- utilização apenas de amostras com durações próximas ao valor predominante;
+- aplicação de técnicas de padronização temporal durante o pré-processamento.
+
+---
+
+# Distribuição por Classe
+
+Além da análise global, também foram construídos histogramas individuais para cada classe do dataset.
+
+## Histogramas por Classe
+
+![Distribuição por classe](results/distribution_by_class.png)
+
+A análise individual das classes permitiu identificar diferenças importantes tanto na quantidade de amostras quanto na distribuição temporal dos sinais.
+
+- **Asthma:** apenas 1 amostra;
+- **Bronchiectasis:** 16 amostras;
+- **Bronchiolitis:** 13 amostras;
+- **COPD:** mais de 700 amostras;
+- **Healthy:** aproximadamente 30 amostras;
+- **LRTI:** 2 amostras;
+- **Pneumonia:** cerca de 40 amostras;
+- **URTI:** aproximadamente 25 amostras.
+
+Observa-se um forte desbalanceamento entre as classes do dataset, principalmente devido à predominância da classe COPD. Esse comportamento pode favorecer classes majoritárias durante o treinamento dos modelos, dificultando a generalização para categorias com menor representatividade.
+
+Dessa forma, estratégias de balanceamento ou seleção criteriosa das amostras deverão ser consideradas nas próximas etapas do projeto.
+
+---
+
+# Pré-processamento dos Sinais
+
+Para garantir consistência entre as amostras, os sinais respiratórios foram padronizados utilizando:
+
+- taxa de amostragem fixa de **18 kHz**;
+- duração fixa de **20 segundos**.
+
+Áudios menores foram preenchidos com zeros (*zero-padding*), enquanto sinais maiores foram truncados. Posteriormente, foi aplicada normalização pela amplitude máxima para reduzir variações de escala entre as gravações.
+
+---
+
+# Extração de Características
+
+Após o pré-processamento, diferentes representações espectrais e temporais foram extraídas utilizando a biblioteca `Librosa`.
+
+As características obtidas incluem:
+
+- Spectrogram (dB);
+- Mel Spectrogram;
+- MFCC;
+- MFCC Delta;
+- Chroma STFT;
+- Spectral Contrast;
+- Constant-Q Transform (CQT);
+- Phase Spectrogram.
+
+Essas representações permitem analisar os sinais respiratórios sob diferentes perspectivas acústicas e identificar padrões associados às doenças respiratórias.
+
+# Visualizações das Características
+
+Spectrogram (dB)
+
+![Spectrogram](results/spectrogram_db.png)
+
+---
+
+Mel Spectrogram
+
+![Mel Spectrogram](results/mel_spectrogram.png)
+
+---
+
+MFCC
+
+![MFCC](results/mfcc.png)
+
+---
+
+MFCC Delta
+
+![MFCC Delta](results/mfcc_delta.png)
+
+---
+
+Chroma STFT
+
+![Chroma STFT](results/chroma_stft.png)
+
+---
+
+Spectral Contrast
+
+![Spectral Contrast](results/spectral_contrast.png)
+
+---
+
+CQT Spectrogram
+
+![CQT](results/cqt_spectrogram.png)
+
+---
+
+Phase Spectrogram
+
+![Phase Spectrogram](results/phase_spectrogram.png)
+
 
 > ### Resultados Preliminares
 
