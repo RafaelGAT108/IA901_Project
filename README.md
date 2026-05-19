@@ -241,10 +241,15 @@ Entre as representações extraídas, o **Mel Spectrogram** foi utilizado para v
 A análise do Mel Spectrogram evidencia diferenças entre os padrões respiratórios das patologias e o sinal considerado saudável. No caso do sinal Healthy (Saudável), observa-se uma distribuição espectral homogênea e contínua, com predominância de energia concentrada nas baixas frequências, comportamento esperado em ciclos respiratórios fisiológicos. Há menor presença de eventos impulsivos e menor variabilidade temporal, indicando estabilidade do fluxo aéreo pulmonar. Já nos sinais patológicos, percebe-se aumento da complexidade espectral e mudanças importantes na distribuição temporal da energia:
 
 -Asthma apresenta regiões intermitentes de energia distribuídas em faixas específicas de frequência, compatíveis com a presença de sibilos. 
+
 -Bronchiectasis mostra um padrão bastante energético e repetitivo ao longo do tempo, com estruturas verticais recorrentes e ampla ocupação espectral. 
+
 -Bronchiolitis apresenta distribuição espectral mais difusa, com maior densidade de componentes em médias frequências. 
+
 -LRTI exibe eventos esparsos de energia intensa, indicando comportamento acústico menos regular que o saudável. 
+
 -Pneumonia apresenta regiões isoladas de alta intensidade espectral, além de maior espalhamento energético em frequências médias e baixas. 
+
 -URTI mostra aumento moderado da atividade espectral e maior irregularidade temporal em comparação ao saudável, embora com menor complexidade que patologias pulmonais mais severas.
 
 No caso do COPD, observa-se um comportamento diferente dos demais. Parte do espectrograma contém atividade espectral normal do sinal respiratório, enquanto uma grande região escura aparece no restante da imagem. Isso ocorre devido ao zero padding aplicado durante o pré-processamento para padronizar todos os áudios em 20 segundos. Portanto, parte desse comportamento visual não está associada diretamente à doença, mas sim ao processo de padronização aplicado no dataset. Mesmo assim, na região correspondente ao áudio real, o COPD ainda apresenta um padrão mais irregular e fragmentado em comparação ao saudável, o que está de acordo com alterações respiratórias típicas da doença.
