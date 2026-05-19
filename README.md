@@ -110,10 +110,46 @@ $$
 $$
 
 ### Chroma
+Essa transformação é equacionada por:
+
+$$
+Chroma(p, t) = \sum_{k \in K_{p}}{|X(t, k)|}
+$$
+
+Onde: p é a classe cromática (C, C#, D, ...) e $K_P$ é o bins associados àquela nota.
 
 ### Contrast
 
+$$
+SC_b(t) = 10\log_{10}(\frac{P_b(t)}{V_b(t)})
+$$
+
+Sendo $P_b(t)$ a média dos picos da banda e $V_b(t)$ a média dos vales da banda.
+
+### Constant-Q Transform
+$$
+X(k,n)=
+\frac{1}{N_k}
+\sum_{m=0}^{N_k-1}
+x[n-m],
+w_k[m],
+e^{-j2\pi Qm/N_k}
+$$
+
+$$
+CQT_{dB} = 20\log(|X(k, n)|)
+$$
+
 ### Fase Espectral
+A fase espectral, por sua vez, é equacionada por:
+
+$$
+\phi(m, k) = \tan^{-1}(\frac{\Re(X(m, k))}{\Im(X(m, k))})
+$$
+
+Como métricas de avaliação será utilizado a acurácia do modelo, além das outras métricas como F1-Score, Recall e Precision tanto no aspecto de classificação global quanto individual por cada classe.
+Para os resultados preliminares, o dataset será avaliado em três etapas: A primeira avaliação se dará utilizando o dataset ICBHI2017 com os audios de 20 segundos de duração. No segundo momento, esse dataset será complementado com amostras do dataset KAUH para as classes Asma, Saudável e Pneumonia. Esse procedimento foi feito manualmente levando em consideração as labels presentes no próprio nome dos audios, indicando a qual classe eles pertenciam. Por fim, a terceira etapa consiste em realizar as transformações no dataset mesclado, porém, para cada 6 segundo dos audios, fazendo assim o data-augmentation.
+O treinamento se dará via Transfer Learning com a rede InceptionV3, treinada por 10 épocas e com a divisão Holdout 80% para treinamento e 20% para validação.
 
 ## Bases de Dados e Evolução
 
@@ -168,11 +204,42 @@ Também pretende-se utilizar o **TensorBoard** para monitoramento dos experiment
 
 > ### Resultados Preliminares
 
-Realizando as etapas descritas na Metodologia e no Workflow, obteu-se os resultados das métricas de avaliação para as 8 transformações analisadas, conforme apresentadas nas tabelas abaixo:
+Realizando as etapas descritas na Metodologia e no Workflow, obteu-se os resultados das métricas de avaliação para as 8 transformações analisadas, conforme apresentadas nas tabelas abaixo (Para Download, as Tabelas completas e em gráfico exemplos das tabelas parciais):
+
+| feature    | class          |   precision |   recall |   f1_score |   support |   accuracy_global |   precision_global |   recall_global |   f1_global |
+|:-----------|:---------------|------------:|---------:|-----------:|----------:|------------------:|-------------------:|----------------:|------------:|
+| phase      | Bronchiectasis |    1        | 0.333333 |   0.5      |         3 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
+| phase      | Bronchiolitis  |    0        | 0        |   0        |         3 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
+| phase      | COPD           |    0.856287 | 1        |   0.922581 |       143 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
+| phase      | Healthy        |    0        | 0        |   0        |         7 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
+| phase      | Pneumonia      |    0        | 0        |   0        |         7 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
+| phase      | URTI           |    0        | 0        |   0        |         5 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
+
 
 [Download results_ibchi.xlsx](results/results_icbhi.xlsx)
 
+| feature            | class          | precision | recall | f1_score | support | accuracy_global | precision_global | recall_global | f1_global |
+| ------------------ | -------------- | --------- | ------ | -------- | ------- | --------------- | ---------------- | ------------- | --------- |
+| phase              | Asthma         | 1.0000    | 0.5000 | 0.6667   | 4       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
+| phase              | Bronchiectasis | 1.0000    | 1.0000 | 1.0000   | 3       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
+| phase              | Bronchiolitis  | 0.0000    | 0.0000 | 0.0000   | 3       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
+| phase              | COPD           | 0.8854    | 0.9720 | 0.9267   | 143     | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
+| phase              | Healthy        | 0.4167    | 0.4167 | 0.4167   | 12      | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
+| phase              | Pneumonia      | 0.0000    | 0.0000 | 0.0000   | 7       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
+| phase              | URTI           | 0.0000    | 0.0000 | 0.0000   | 5       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
+
 [Download results_mixed.xlsx](results/results_mixed.xlsx)
+
+
+| feature     | class          | precision | recall | f1_score | support | accuracy_global | precision_global | recall_global | f1_global |
+| ----------- | -------------- | --------- | ------ | -------- | ------- | --------------- | ---------------- | ------------- | --------- |
+| phase       | Asthma         | 0.3864    | 0.3542 | 0.3696   | 48      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
+| phase       | Bronchiectasis | 0.0000    | 0.0000 | 0.0000   | 9       | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
+| phase       | Bronchiolitis  | 0.0000    | 0.0000 | 0.0000   | 8       | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
+| phase       | COPD           | 0.7822    | 0.9950 | 0.8758   | 397     | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
+| phase       | Healthy        | 0.4242    | 0.1867 | 0.2593   | 75      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
+| phase       | Pneumonia      | 0.0000    | 0.0000 | 0.0000   | 16      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
+| phase       | URTI           | 0.0000    | 0.0000 | 0.0000   | 22      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
 
 [Download results_6sec.xlsx](results/results_6sec.xlsx)
 
