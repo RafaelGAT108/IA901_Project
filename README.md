@@ -236,7 +236,7 @@ Após o pré-processamento, diferentes representações espectrais e temporais f
 
 Entre as representações extraídas, o **Mel Spectrogram** foi utilizado para visualização qualitativa dos padrões espectrais presentes nos sinais respiratórios.
 
-  <img src="results/mel_spectrogram.png" width="900">
+  <img src="results/mel spectrogram.png" width="900">
 
 A análise do Mel Spectrogram evidencia diferenças entre os padrões respiratórios das patologias e o sinal considerado saudável. No caso do sinal Healthy (Saudável), observa-se uma distribuição espectral homogênea e contínua, com predominância de energia concentrada nas baixas frequências, comportamento esperado em ciclos respiratórios fisiológicos. Há menor presença de eventos impulsivos e menor variabilidade temporal, indicando estabilidade do fluxo aéreo pulmonar. Já nos sinais patológicos, percebe-se aumento da complexidade espectral e mudanças importantes na distribuição temporal da energia:
 
