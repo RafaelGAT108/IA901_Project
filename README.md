@@ -195,7 +195,60 @@ Também pretende-se utilizar o **TensorBoard** para monitoramento dos experiment
 > Aponte os problemas encontrados nas soluções testadas até aqui.
 
 > ### Análise Exploratória
-- 
+- Esta etapa do projeto consistiu na realização de uma análise exploratória da distribuição das durações dos sinais de áudio respiratório.
+O script percorre todas as pastas correspondentes às doenças respiratórias no dataset, identifica os arquivos .wav e calcula a duração de cada gravação utilizando a biblioteca Librosa. As durações e respectivas classes são armazenadas para posterior análise estatística. Foram analisadas 920 amostras de áudio:
+
+| Métrica | Valor |
+|---|---|
+| Duração mínima | 7,86 s |
+| Duração máxima | 86,20 s |
+| Duração média | 21,49 s |
+
+O histograma a seguir ilusta distribuição das durações dos sinais de áudio, evidenciando uma concentração de amostras com duração de 20 segundos. No entanto, observa-se a existência de gravações com durações discrepantes, alcançando valores significativamente inferiores e superiores à média do conjunto de dados. Essa heterogeneidade temporal pode dificultar o processo de treinamento dos modelos de aprendizado profundo, devido à inconsistência no comprimento das entradas. Como possível abordagem para minimizar esse problema, está sendo considerada a utilização apenas das amostras com durações próximas ao valor predominante observado no dataset, uma vez que essas representam a maior parte das gravações disponíveis. Alternativamente, também está em análise a aplicação de técnicas de padronização temporal durante o pré-processamento dos sinais.
+<img src="results/distribuição de duração dos audios.png" width="700">
+
+Adicionalmente, foram feitas análises individuais para cada classe do dataset, permitindo uma análise mais detalhada da distribuição das durações entre as diferentes patologias respiratórias. A análise individual das classes permitiu observar diferenças importantes tanto na quantidade de amostras quanto na distribuição das durações dos sinais de áudio.
+Para a classe Asthma (Asma), observa-se apenas uma amostra, com duração concentrada em aproximadamente 20 segundos. De forma semelhante, as classes Bronchiectasis (Bronquiectasia) e Bronchiolitis (Bronquiolite) apresentam, respectivamente, 16 e 13 amostras, todas concentradas na mesma duração.
+A classe COPD (Doença Pulmonar Obstrutiva Crônica) apresenta um comportamento significativamente diferente das demais, contendo mais de 700 amostras. Apesar de existir uma variação nas durações, aproximadamente entre 10 e 30 segundos, nota-se uma predominância expressiva de sinais próximos de 20 segundos, representando a maior parte das amostras dessa classe.
+Para a classe Healthy (Saudável), observa-se aproximadamente 30 amostras, também concentradas próximas de 20 segundos, com pequenas variações temporais inferiores a 0,2 segundos. Já a classe LRTI (Infecção do Trato Respiratório Superior) apresenta apenas duas amostras, ambas próximas de 20 segundos.
+Na classe Pneumonia (Pneumonia), observa-se cerca de 40 amostras concentradas em torno de 20 segundos de duração. Por fim, a classe URTI (Infecção do Trato Respiratório Inferior) apresenta aproximadamente 25 amostras próximas de 20 segundos, além de uma amostra com pequeno desvio temporal, em torno de 19,85 segundos.
+A partir dessa análise, é possível observar não apenas diferenças nas durações dos sinais entre algumas amostras, mas principalmente um forte desbalanceamento entre as classes do conjunto de dados. Enquanto determinadas categorias possuem poucas amostras disponíveis, a classe COPD concentra a maior parte do dataset. Esse desbalanceamento pode impactar diretamente o treinamento dos modelos de classificação, favorecendo classes majoritárias e dificultando a generalização para classes com menor representatividade. Dessa forma, torna-se importante considerar estratégias de balanceamento ou seleção criteriosa das amostras durante as etapas posteriores do projeto.
+
+Com o objetivo de garantir consistência entre as amostras, os sinais foram padronizados para uma taxa de amostragem de 18 kHz e duração fixa de 20 segundos. O pipeline de pré-processamento inclui:
+
+-reamostragem dos sinais para 18 kHz;
+-preenchimento com zeros para áudios com duração inferior ao alvo;
+-truncamento para áudios com duração superior ao limite definido;
+-normalização pela amplitude máxima.
+
+Essa padronização reduz a variabilidade estrutural entre as amostras e viabiliza a extração consistente de características acústicas.
+
+Após o pré-processamento, diferentes representações espectrais e temporais foram extraídas utilizando funções da biblioteca `Librosa`, incluindo:
+
+- Espectrograma em dB;
+- Mel Spectrogram;
+- MFCC;
+- MFCC Delta;
+- Chroma STFT;
+- Spectral Contrast;
+- Constant-Q Transform (CQT);
+- Espectrograma de Fase.
+
+Entre as representações extraídas, o **Mel Spectrogram** foi utilizado para visualização qualitativa dos padrões espectrais presentes nos sinais respiratórios.
+
+  <img src="results/mel_spectrogram.png" width="900">
+
+A análise do Mel Spectrogram evidencia diferenças entre os padrões respiratórios das patologias e o sinal considerado saudável. No caso do sinal Healthy (Saudável), observa-se uma distribuição espectral homogênea e contínua, com predominância de energia concentrada nas baixas frequências, comportamento esperado em ciclos respiratórios fisiológicos. Há menor presença de eventos impulsivos e menor variabilidade temporal, indicando estabilidade do fluxo aéreo pulmonar. Já nos sinais patológicos, percebe-se aumento da complexidade espectral e mudanças importantes na distribuição temporal da energia:
+
+-Asthma apresenta regiões intermitentes de energia distribuídas em faixas específicas de frequência, compatíveis com a presença de sibilos. 
+-Bronchiectasis mostra um padrão bastante energético e repetitivo ao longo do tempo, com estruturas verticais recorrentes e ampla ocupação espectral. 
+-Bronchiolitis apresenta distribuição espectral mais difusa, com maior densidade de componentes em médias frequências. 
+-LRTI exibe eventos esparsos de energia intensa, indicando comportamento acústico menos regular que o saudável. 
+-Pneumonia apresenta regiões isoladas de alta intensidade espectral, além de maior espalhamento energético em frequências médias e baixas. 
+-URTI mostra aumento moderado da atividade espectral e maior irregularidade temporal em comparação ao saudável, embora com menor complexidade que patologias pulmonais mais severas.
+
+No caso do COPD, observa-se um comportamento diferente dos demais. Parte do espectrograma contém atividade espectral normal do sinal respiratório, enquanto uma grande região escura aparece no restante da imagem. Isso ocorre devido ao zero padding aplicado durante o pré-processamento para padronizar todos os áudios em 20 segundos. Portanto, parte desse comportamento visual não está associada diretamente à doença, mas sim ao processo de padronização aplicado no dataset. Mesmo assim, na região correspondente ao áudio real, o COPD ainda apresenta um padrão mais irregular e fragmentado em comparação ao saudável, o que está de acordo com alterações respiratórias típicas da doença.
+
 
 > ### Resultados Preliminares
 
