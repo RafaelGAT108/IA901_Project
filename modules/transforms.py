@@ -14,16 +14,16 @@ Examples:
     ...     MelSpectrogram(n_mels=128),
     ... ])
     >>>
-    >>> lung_sound = LungSound("sample.wav")
-    >>> lung_sound = transforms(lung_sound)
-    >>> print(lung_sound.features.shape)
+    >>> lung_sound = LungSoundAudio("sample.wav")
+    >>> features = transforms(lung_sound)
+    >>> print(features.shape)
 """
 
 import copy
 import librosa
 import numpy as np
 from abc import ABC, abstractmethod
-from modules.audio import LungSound
+from modules.lungsound import LungSoundAudio, LungSoundFeatures
 
 
 # ============================================================
@@ -34,15 +34,29 @@ from modules.audio import LungSound
 class AudioTransform(ABC):
     """ Base class for 1D -> 1D audio transforms. """
     @abstractmethod
-    def __call__(self, lung_sound: LungSound) -> LungSound:
-        pass
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundAudio:
+        ...
+
+    def __repr__(self):
+        params = ", ".join(
+            f"{k}={v!r}"
+            for k, v in vars(self).items()
+        )
+        return f"{self.__class__.__name__}({params})"
 
 
 class FeatureExtractor(ABC):
     """ Base class for 1D -> 2D feature extractors. """
     @abstractmethod
-    def __call__(self, lung_sound: LungSound) -> LungSound:
-        pass
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
+        ...
+
+    def __repr__(self):
+        params = ", ".join(
+            f"{k}={v!r}"
+            for k, v in vars(self).items()
+        )
+        return f"{self.__class__.__name__}({params})"
 
 
 class Compose(AudioTransform):
@@ -60,7 +74,7 @@ class Compose(AudioTransform):
         self.name = "Compose"
         self.transforms = transforms
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundAudio:
         for transform in self.transforms:
             lung_sound = transform(lung_sound)
         return lung_sound
@@ -77,11 +91,10 @@ class NormalizeAudio(AudioTransform):
     """
     Normalize waveform amplitude to [-1, 1].
     """
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundAudio:
         audio = lung_sound.audio
         # lung_sound.audio = librosa.util.normalize(audio, axis=None)
         lung_sound.audio = audio / (np.max(np.abs(audio)) + 1e-8)
-        lung_sound.features = None  # Clear features since the original audio has changed
         return lung_sound
 
 
@@ -97,13 +110,12 @@ class Resample(AudioTransform):
         """
         self.target_sr = target_sr
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundAudio:
         audio = lung_sound.audio
         sr = lung_sound.sr
         if sr != self.target_sr:
             lung_sound.audio = librosa.resample(audio, orig_sr=sr, target_sr=self.target_sr)
             lung_sound.sr = self.target_sr
-        lung_sound.features = None  # Clear features since the original audio has changed
         return lung_sound
 
 
@@ -119,7 +131,7 @@ class PadOrTrim(AudioTransform):
         """
         self.target_duration = target_duration
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundAudio:
         audio = lung_sound.audio
         sr = lung_sound.sr
         target_len = int(self.target_duration * sr)
@@ -127,7 +139,6 @@ class PadOrTrim(AudioTransform):
             lung_sound.audio = np.pad(audio, (0, target_len - len(audio)), mode='constant')
         else:
             lung_sound.audio = audio[:target_len]
-        lung_sound.features = None  # Clear features since the original audio has changed
         return lung_sound
 
 
@@ -145,13 +156,12 @@ class Crop(AudioTransform):
         self.start_time = start_time
         self.end_time = end_time
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundAudio:
         audio = lung_sound.audio
         sr = lung_sound.sr
         start_sample = int(self.start_time * sr)
         end_sample = int(self.end_time * sr)
         lung_sound.audio = audio[start_sample:end_sample]
-        lung_sound.features = None  # Clear features since the original audio has changed
         return lung_sound
 
 
@@ -170,13 +180,13 @@ class Window(AudioTransform):
         self.window_length = window_length
         self.hop_length = hop_length
 
-    def __call__(self, lung_sound: LungSound) -> list[LungSound]:
+    def __call__(self, lung_sound: LungSoundAudio) -> list[LungSoundAudio]:
         duration = lung_sound.duration
         start = 0.0
         end = start + self.window_length
         crops = []
         while end <= duration:
-            cropped = copy.deepcopy(lung_sound)
+            cropped = copy.copy(lung_sound)
             cropped = Crop(start_time=start, end_time=end)(cropped)
             crops.append(cropped)
             start += self.hop_length
@@ -189,13 +199,13 @@ class Window(AudioTransform):
 # ============================================================
 
 
-class Spectrogram(FeatureExtractor):
+class STFT(FeatureExtractor):
     """
     Standard magnitude spectrogram in dB scale.
     """
-    def __init__(self, n_fft: int = 2048, hop_length: int | None = None):
+    def __init__(self, n_fft: int = 2048, hop_length: int = 512):
         """
-        Initializes the Spectrogram feature extractor.
+        Initializes the STFT feature extractor.
         Args:
             n_fft: Length of the FFT window in samples.
             hop_length: Number of samples between successive frames.
@@ -203,16 +213,28 @@ class Spectrogram(FeatureExtractor):
         self.n_fft = n_fft
         self.hop_length = hop_length
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    @property
+    def name(self):
+        return "stft_db"
+
+    @property
+    def plot_params(self):
+        return {
+            "n_fft": self.n_fft,
+            "hop_length": self.hop_length,
+            "y_axis": "log",
+            "x_axis": "time",
+        }
+
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
         stft = librosa.stft(
             lung_sound.audio,
             n_fft=self.n_fft,
             hop_length=self.hop_length
         )
         mag = np.abs(stft)
-        lung_sound.features = librosa.amplitude_to_db(mag, ref=np.max)
-        lung_sound.feature_extractor = self
-        return lung_sound
+        features = librosa.amplitude_to_db(mag, ref=np.max)
+        return features
 
 
 class MelSpectrogram(FeatureExtractor):
@@ -231,7 +253,19 @@ class MelSpectrogram(FeatureExtractor):
         self.hop_length = hop_length
         self.n_mels = n_mels
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    @property
+    def name(self):
+        return "mel_spec_db"
+
+    @property
+    def plot_params(self):
+        return {
+            "hop_length": self.hop_length,
+            "y_axis": "mel",
+            "x_axis": "time",
+        }
+
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
         mel_spec = librosa.feature.melspectrogram(
             y=lung_sound.audio,
             sr=lung_sound.sr,
@@ -239,9 +273,8 @@ class MelSpectrogram(FeatureExtractor):
             n_fft=self.n_fft,
             hop_length=self.hop_length,
         )
-        lung_sound.features = librosa.power_to_db(mel_spec, ref=np.max)
-        lung_sound.feature_extractor = self
-        return lung_sound
+        features = librosa.power_to_db(mel_spec, ref=np.max)
+        return features
 
 
 class MFCC(FeatureExtractor):
@@ -260,16 +293,27 @@ class MFCC(FeatureExtractor):
         self.hop_length = hop_length
         self.n_mfcc = n_mfcc
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
-        lung_sound.features = librosa.feature.mfcc(
+    @property
+    def name(self):
+        return "mfcc"
+
+    @property
+    def plot_params(self):
+        return {
+            "hop_length": self.hop_length,
+            "y_axis": None,
+            "x_axis": "time",
+        }
+
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
+        features = librosa.feature.mfcc(
             y=lung_sound.audio,
             sr=lung_sound.sr,
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             n_mfcc=self.n_mfcc
         )
-        lung_sound.feature_extractor = self
-        return lung_sound
+        return features
 
 
 class MFCCDelta(FeatureExtractor):
@@ -288,7 +332,19 @@ class MFCCDelta(FeatureExtractor):
         self.hop_length = hop_length
         self.n_mfcc = n_mfcc
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    @property
+    def name(self):
+        return "mfcc_delta"
+
+    @property
+    def plot_params(self):
+        return {
+            "hop_length": self.hop_length,
+            "y_axis": None,
+            "x_axis": "time",
+        }
+
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
         mfcc = librosa.feature.mfcc(
             y=lung_sound.audio,
             sr=lung_sound.sr,
@@ -296,9 +352,8 @@ class MFCCDelta(FeatureExtractor):
             hop_length=self.hop_length,
             n_mfcc=self.n_mfcc
         )
-        lung_sound.features = librosa.feature.delta(mfcc)
-        lung_sound.feature_extractor = self
-        return lung_sound
+        features = librosa.feature.delta(mfcc)
+        return features
 
 
 class Chroma(FeatureExtractor):
@@ -317,45 +372,78 @@ class Chroma(FeatureExtractor):
         self.hop_length = hop_length
         self.n_chroma = n_chroma
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    @property
+    def name(self):
+        return "chroma"
+
+    @property
+    def plot_params(self):
+        return {
+            "n_fft": self.n_fft,
+            "hop_length": self.hop_length,
+            "y_axis": "chroma",
+            "x_axis": "time",
+        }
+
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
         stft = librosa.stft(lung_sound.audio)
         mag = np.abs(stft)
-        lung_sound.features = librosa.feature.chroma_stft(
+        features = librosa.feature.chroma_stft(
             S=mag,
             sr=lung_sound.sr,
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             n_chroma=self.n_chroma
         )
-        lung_sound.feature_extractor = self
-        return lung_sound
+        return features
 
 
 class SpectralContrast(FeatureExtractor):
     """
     Spectral contrast (amplitude peaks vs valleys in frequency bands).
     """
-    def __init__(self, n_bands: int = 4, fmin: float = 50):
+    def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_bands: int = 4, fmin: float = 50):
         """
         Initializes the SpectralContrast feature extractor.
         Args:
+            n_fft: Length of the FFT window in samples.
+            hop_length: Number of samples between successive frames.
             n_bands: Number of frequency bands to use for contrast calculation.
             fmin: Minimum frequency to consider in Hz.
         """
+        self.n_fft = n_fft
+        self.hop_length = hop_length
         self.n_bands = n_bands
         self.fmin = fmin
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
-        stft = librosa.stft(lung_sound.audio)
+    @property
+    def name(self):
+        return "contrast"
+
+    @property
+    def plot_params(self):
+        return {
+            "n_fft": self.n_fft,
+            "hop_length": self.hop_length,
+            "y_axis": None,
+            "x_axis": "time",
+        }
+
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
+        stft = librosa.stft(
+            lung_sound.audio,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length
+        )
         mag = np.abs(stft)
-        lung_sound.features = librosa.feature.spectral_contrast(
+        features = librosa.feature.spectral_contrast(
             S=mag,
             sr=lung_sound.sr,
             n_bands=self.n_bands,
             fmin=self.fmin
         )
-        lung_sound.feature_extractor = self
-        return lung_sound
+        return features
+
 
 
 class CQT(FeatureExtractor):
@@ -374,7 +462,20 @@ class CQT(FeatureExtractor):
         self.fmin = fmin
         self.bins_per_octave = bins_per_octave
 
-    def __call__(self, lung_sound: LungSound) -> LungSound:
+    @property
+    def name(self):
+        return "cqt_db"
+
+    @property
+    def plot_params(self):
+        return {
+            "fmin": self.fmin,
+            "bins_per_octave": self.bins_per_octave,
+            "y_axis": "cqt_note",
+            "x_axis": "time",
+        }
+
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
         cqt = librosa.cqt(
             lung_sound.audio,
             sr=lung_sound.sr,
@@ -383,17 +484,62 @@ class CQT(FeatureExtractor):
             bins_per_octave=self.bins_per_octave
         )
         mag = np.abs(cqt)
-        lung_sound.features = librosa.amplitude_to_db(mag, ref=np.max)
-        lung_sound.feature_extractor = self
-        return lung_sound
+        features = librosa.amplitude_to_db(mag, ref=np.max)
+        return features
 
 
 class Phase(FeatureExtractor):
     """
     Phase spectrogram (angle of STFT coefficients).
     """
-    def __call__(self, lung_sound: LungSound) -> LungSound:
-        stft = librosa.stft(lung_sound.audio)
-        lung_sound.features = np.angle(stft)
-        lung_sound.feature_extractor = self
-        return lung_sound
+    def __init__(self, n_fft: int = 2048, hop_length: int = 512):
+        """
+        Initializes the Phase feature extractor.
+        Args:
+            n_fft: Length of the FFT window in samples.
+            hop_length: Number of samples between successive frames.
+        """
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+
+    @property
+    def name(self):
+        return "phase"
+
+    @property
+    def plot_params(self):
+        return {
+            "n_fft": self.n_fft,
+            "hop_length": self.hop_length,
+            "y_axis": None,
+            "x_axis": "time",
+        }
+
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
+        stft = librosa.stft(
+            lung_sound.audio,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length
+        )
+        features = np.angle(stft)
+        return features
+
+
+# ============================================================
+# Utility classes for features
+# ============================================================
+
+class StackFeatures(FeatureExtractor):
+    """
+    Stack multiple feature arrays along a new channel dimension (channels-last).
+    Example: If you have MFCC, Mel spectrogram, and Chroma features, this will combine
+    them into a single 3D array with shape (freq_bins, time_frames, channels).
+    """
+    @property
+    def name(self):
+        return "stacked_features"
+
+    def __call__(self, features: list[LungSoundFeatures]) -> np.ndarray:
+        features_array = [f.features for f in features]
+        stacked = np.stack(features_array, axis=-1)
+        return stacked

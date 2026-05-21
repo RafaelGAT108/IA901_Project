@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from typing import Any
 
-from modules.dataset import KAUHDataset, ICBHIDataset, CombinedLungSoundDataset, LungSoundDataset, DIAGNOSIS
+from modules.dataset import KAUHAudioDataset, ICBHIAudioDataset, CombinedAudioDataset, LungSoundAudioDataset, DIAGNOSIS
 import modules.transforms as T
 
 class LungSoundDataModule(L.LightningDataModule):
@@ -34,9 +34,9 @@ class LungSoundDataModule(L.LightningDataModule):
         """
         super().__init__()
         self.AVAILABLE_DATASETS = {
-            "ICBHI": ICBHIDataset,
-            "KAUH": KAUHDataset,
-            "combined": CombinedLungSoundDataset,
+            "ICBHI": ICBHIAudioDataset,
+            "KAUH": KAUHAudioDataset,
+            "combined": CombinedAudioDataset,
         }
 
         # Load dataset configurations
@@ -47,7 +47,7 @@ class LungSoundDataModule(L.LightningDataModule):
             raise ValueError(f"Invalid dataset: {dataset_name}. Choose from: {tuple(self.AVAILABLE_DATASETS)}")
 
         self.data_path = data_path
-        self.dataset_class: type[LungSoundDataset] = self.AVAILABLE_DATASETS[dataset_name]
+        self.dataset_class: type[LungSoundAudioDataset] = self.AVAILABLE_DATASETS[dataset_name]
         self.classes = dataset_config.get("classes", DIAGNOSIS)
         self.num_channels = dataset_config.get("num_channels", 1)
 
