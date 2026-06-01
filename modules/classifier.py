@@ -178,9 +178,6 @@ class LungSoundClassifier(L.LightningModule):
         metrics = {}
         for class_name in self.classes:
             metrics[f"val_{class_name}_f1"] = report[class_name]["f1-score"]
-        metrics["val_accuracy"] = report["accuracy"]
-        metrics["val_macro_f1"] = report["macro avg"]["f1-score"]
-        metrics["val_weighted_f1"] = report["weighted avg"]["f1-score"]
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False)
 
 
@@ -237,7 +234,4 @@ class LungSoundClassifier(L.LightningModule):
             metrics[f"test_{class_name}_precision"] = report[class_name]["precision"]
             metrics[f"test_{class_name}_recall"] = report[class_name]["recall"]
             metrics[f"test_{class_name}_f1"] = report[class_name]["f1-score"]
-        metrics["test_accuracy"] = report["accuracy"]
-        metrics["test_macro_f1"] = report["macro avg"]["f1-score"]
-        metrics["test_weighted_f1"] = report["weighted avg"]["f1-score"]
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False)

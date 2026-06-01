@@ -25,7 +25,6 @@ import numpy as np
 from abc import ABC, abstractmethod
 from modules.lungsound import LungSoundAudio, LungSoundFeatures
 
-
 # ============================================================
 # Base classes
 # ============================================================
@@ -38,11 +37,15 @@ class AudioTransform(ABC):
         ...
 
     def __repr__(self):
-        params = ", ".join(
+        params = ",".join(
             f"{k}={v!r}"
             for k, v in vars(self).items()
         )
         return f"{self.__class__.__name__}({params})"
+
+    @property
+    def name(self):
+        return self.__class__.__name__
 
 
 class FeatureExtractor(ABC):
@@ -52,11 +55,20 @@ class FeatureExtractor(ABC):
         ...
 
     def __repr__(self):
-        params = ", ".join(
+        params = ",".join(
             f"{k}={v!r}"
             for k, v in vars(self).items()
         )
         return f"{self.__class__.__name__}({params})"
+
+    @property
+    def name(self):
+        return self.__class__.__name__
+
+    @property
+    def plot_params(self):
+        """ Parameters to use when plotting the features with librosa.display.specshow. """
+        return {}
 
 
 class Compose(AudioTransform):
@@ -71,7 +83,6 @@ class Compose(AudioTransform):
     ... ])
     """
     def __init__(self, transforms: list[AudioTransform | FeatureExtractor]):
-        self.name = "Compose"
         self.transforms = transforms
 
     def __call__(self, lung_sound: LungSoundAudio) -> LungSoundAudio:
@@ -88,9 +99,7 @@ class Compose(AudioTransform):
 
 
 class NormalizeAudio(AudioTransform):
-    """
-    Normalize waveform amplitude to [-1, 1].
-    """
+    """ Normalize waveform amplitude to [-1, 1]. """
     def __call__(self, lung_sound: LungSoundAudio) -> LungSoundAudio:
         audio = lung_sound.audio
         # lung_sound.audio = librosa.util.normalize(audio, axis=None)
@@ -99,12 +108,9 @@ class NormalizeAudio(AudioTransform):
 
 
 class Resample(AudioTransform):
-    """
-    Resample waveform to a target sample rate.
-    """
+    """ Resample waveform to a target sample rate. """
     def __init__(self, target_sr: int):
         """
-        Initializes the Resample transform.
         Args:
             target_sr: Target sample rate in Hz.
         """
@@ -120,12 +126,9 @@ class Resample(AudioTransform):
 
 
 class PadOrTrim(AudioTransform):
-    """
-    Pad with zeros or trim waveform to a fixed duration.
-    """
+    """ Pad with zeros or trim waveform to a fixed duration. """
     def __init__(self, target_duration: float):
         """
-        Initializes the PadOrTrim transform.
         Args:
             target_duration: Target duration in seconds.
         """
@@ -143,12 +146,9 @@ class PadOrTrim(AudioTransform):
 
 
 class Crop(AudioTransform):
-    """
-    Crop a random segment of the audio to a fixed duration.
-    """
+    """ Crop a random segment of the audio to a fixed duration. """
     def __init__(self, start_time: float, end_time: float):
         """
-        Initializes the Crop transform.
         Args:
             start_time: Start time of the crop in seconds.
             end_time: End time of the crop in seconds.
@@ -193,6 +193,7 @@ class Window(AudioTransform):
             end += self.hop_length
         return crops
 
+
 # ============================================================
 # Feature extractors
 # 1D -> 2D (audio -> features)
@@ -200,22 +201,15 @@ class Window(AudioTransform):
 
 
 class STFT(FeatureExtractor):
-    """
-    Standard magnitude spectrogram in dB scale.
-    """
+    """ Standard magnitude spectrogram in dB scale. """
     def __init__(self, n_fft: int = 2048, hop_length: int = 512):
         """
-        Initializes the STFT feature extractor.
         Args:
             n_fft: Length of the FFT window in samples.
             hop_length: Number of samples between successive frames.
         """
         self.n_fft = n_fft
         self.hop_length = hop_length
-
-    @property
-    def name(self):
-        return "stft_db"
 
     @property
     def plot_params(self):
@@ -238,12 +232,9 @@ class STFT(FeatureExtractor):
 
 
 class MelSpectrogram(FeatureExtractor):
-    """
-    Mel spectrogram in dB scale.
-    """
+    """ Mel spectrogram in dB scale. """
     def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_mels: int = 128):
         """
-        Initializes the MelSpectrogram feature extractor.
         Args:
             n_fft: Length of the FFT window in samples.
             hop_length: Number of samples between successive frames.
@@ -252,10 +243,6 @@ class MelSpectrogram(FeatureExtractor):
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.n_mels = n_mels
-
-    @property
-    def name(self):
-        return "mel_spec_db"
 
     @property
     def plot_params(self):
@@ -278,12 +265,9 @@ class MelSpectrogram(FeatureExtractor):
 
 
 class MFCC(FeatureExtractor):
-    """
-    Mel-frequency cepstral coefficients.
-    """
+    """ Mel-frequency cepstral coefficients. """
     def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_mfcc: int = 20):
         """
-        Initializes the MFCC feature extractor.
         Args:
             n_fft: Length of the FFT window in samples.
             hop_length: Number of samples between successive frames.
@@ -292,10 +276,6 @@ class MFCC(FeatureExtractor):
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.n_mfcc = n_mfcc
-
-    @property
-    def name(self):
-        return "mfcc"
 
     @property
     def plot_params(self):
@@ -317,12 +297,9 @@ class MFCC(FeatureExtractor):
 
 
 class MFCCDelta(FeatureExtractor):
-    """
-    Temporal derivative of MFCC coefficients.
-    """
+    """ Temporal derivative of MFCC coefficients. """
     def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_mfcc: int = 20):
         """
-        Initializes the MFCCDelta feature extractor.
         Args:
             n_fft: Length of the FFT window in samples.
             hop_length: Number of samples between successive frames.
@@ -331,10 +308,6 @@ class MFCCDelta(FeatureExtractor):
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.n_mfcc = n_mfcc
-
-    @property
-    def name(self):
-        return "mfcc_delta"
 
     @property
     def plot_params(self):
@@ -357,12 +330,9 @@ class MFCCDelta(FeatureExtractor):
 
 
 class Chroma(FeatureExtractor):
-    """
-    Chroma spectrogram.
-    """
+    """ Chroma spectrogram. """
     def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_chroma: int = 12):
         """
-        Initializes the Chroma feature extractor.
         Args:
             n_fft: Length of the FFT window in samples.
             hop_length: Number of samples between successive frames.
@@ -371,10 +341,6 @@ class Chroma(FeatureExtractor):
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.n_chroma = n_chroma
-
-    @property
-    def name(self):
-        return "chroma"
 
     @property
     def plot_params(self):
@@ -399,12 +365,9 @@ class Chroma(FeatureExtractor):
 
 
 class SpectralContrast(FeatureExtractor):
-    """
-    Spectral contrast (amplitude peaks vs valleys in frequency bands).
-    """
+    """ Spectral contrast (amplitude peaks vs valleys in frequency bands). """
     def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_bands: int = 4, fmin: float = 50):
         """
-        Initializes the SpectralContrast feature extractor.
         Args:
             n_fft: Length of the FFT window in samples.
             hop_length: Number of samples between successive frames.
@@ -415,10 +378,6 @@ class SpectralContrast(FeatureExtractor):
         self.hop_length = hop_length
         self.n_bands = n_bands
         self.fmin = fmin
-
-    @property
-    def name(self):
-        return "contrast"
 
     @property
     def plot_params(self):
@@ -447,12 +406,9 @@ class SpectralContrast(FeatureExtractor):
 
 
 class CQT(FeatureExtractor):
-    """
-    Constant-Q transform spectrogram (logarithmically spaced frequency bins).
-    """
+    """ Constant-Q transform spectrogram (logarithmically spaced frequency bins). """
     def __init__(self, n_bins: int = 48, fmin: float = 30, bins_per_octave: int = 12):
         """
-        Initializes the CQT feature extractor.
         Args:
             n_bins: Number of frequency bins to use.
             fmin: Minimum frequency to consider in Hz.
@@ -461,10 +417,6 @@ class CQT(FeatureExtractor):
         self.n_bins = n_bins
         self.fmin = fmin
         self.bins_per_octave = bins_per_octave
-
-    @property
-    def name(self):
-        return "cqt_db"
 
     @property
     def plot_params(self):
@@ -489,22 +441,15 @@ class CQT(FeatureExtractor):
 
 
 class Phase(FeatureExtractor):
-    """
-    Phase spectrogram (angle of STFT coefficients).
-    """
+    """ Phase spectrogram (angle of STFT coefficients). """
     def __init__(self, n_fft: int = 2048, hop_length: int = 512):
         """
-        Initializes the Phase feature extractor.
         Args:
             n_fft: Length of the FFT window in samples.
             hop_length: Number of samples between successive frames.
         """
         self.n_fft = n_fft
         self.hop_length = hop_length
-
-    @property
-    def name(self):
-        return "phase"
 
     @property
     def plot_params(self):
@@ -529,17 +474,41 @@ class Phase(FeatureExtractor):
 # Utility classes for features
 # ============================================================
 
-class StackFeatures(FeatureExtractor):
+class Stack(FeatureExtractor):
     """
     Stack multiple feature arrays along a new channel dimension (channels-last).
     Example: If you have MFCC, Mel spectrogram, and Chroma features, this will combine
     them into a single 3D array with shape (freq_bins, time_frames, channels).
     """
+    def __init__(self, feature_extractors: list[FeatureExtractor]):
+        self.feature_extractors = {
+            fe.name: {
+                "params": vars(fe),
+                "plot_params": fe.plot_params
+            }
+            for fe in feature_extractors
+        }
+
     @property
     def name(self):
-        return "stacked_features"
+        return "Stack_" + "_".join(self.feature_extractors.keys())
 
-    def __call__(self, features: list[LungSoundFeatures]) -> np.ndarray:
-        features_array = [f.features for f in features]
+    def __call__(self, lung_sound: LungSoundAudio) -> np.ndarray:
+        features_array = []
+        for name, params in self.feature_extractors.items():
+            extractor_class = globals()[name]
+            init_params = params["params"]
+            extractor = extractor_class(**init_params)
+            features = extractor(lung_sound)
+            features_array.append(features)
         stacked = np.stack(features_array, axis=-1)
         return stacked
+
+
+class NormalizeFeatures(FeatureExtractor):
+    """ Normalize features to mantain the values between 0 and 1. """
+    def __call__(self, features: np.ndarray) -> np.ndarray:
+        min_val = np.min(features)
+        max_val = np.max(features)
+        normalized = (features - min_val) / (max_val - min_val + 1e-8)
+        return normalized

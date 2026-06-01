@@ -20,6 +20,11 @@ class LungSoundAudio():
     Representation of a single lung sound recording.
     """
     def __init__(self, file_path: str | Path | None = None):
+        """
+        Initialize the lung sound audio object.
+        Args:
+            file_path (str | Path | None): Path to the audio file. If None, creates an empty object that can be loaded later.
+        """
         self.file_path = Path(file_path)
         self.audio: np.ndarray | None = None
         self.sr: int | None = None
@@ -70,6 +75,11 @@ class LungSoundFeatures():
     Representation of extracted features from a lung sound recording.
     """
     def __init__(self, file_path: str | Path | None = None):
+        """
+        Initialize the lung sound features object.
+        Args:
+            file_path (str | Path | None): Path to the features file. If None, creates an empty object that can be loaded later.
+        """
         self.file_path = Path(file_path) if file_path is not None else None
         self.features: np.ndarray | None = None
         self.sr: int | None = None
@@ -83,8 +93,13 @@ class LungSoundFeatures():
         """
         if self.file_path.suffix == ".npy":
             self.features = np.load(self.file_path)
-        elif self.file_path.suffix == ".png":
-            self.features = np.array(Image.open(self.file_path).convert("RGB"))
+        elif self.file_path.suffix == ".npz":
+            data = np.load(self.file_path)
+            self.features = data["features"]
+            self.sr = int(data["sr"])
+        elif self.file_path.suffix in [".png", ".jpg", ".jpeg"]:
+            img = Image.open(self.file_path)
+            self.features = np.array(img)
         else:
             raise ValueError(f"Unsupported file format: {self.file_path.suffix}")
 
@@ -103,25 +118,29 @@ class LungSoundFeatures():
         if title is None:
             title = f"{self.file_path.stem}"
 
+        # If the features have a single channel dimension, remove it for plotting
         if self.features.ndim == 3 and self.features.shape[-1] == 1:
-            features = self.features.squeeze(-1)  # Remove the channel dimension for specshow
+            features = self.features.squeeze(-1)
         else:
             features = self.features
 
+        # Determine how to plot based on the shape of the features
         if features.ndim == 2:
-            img = librosa.display.specshow(features, ax=ax, **params)
+            sr = self.sr if self.sr is not None else 22050
+            img = librosa.display.specshow(features, sr=sr, ax=ax, **params)
+            if ax is None:
+                plt.title(title)
+                plt.colorbar(img)
+                plt.show()
+            else:
+                ax.set_title(title)
         elif features.ndim == 3 and features.shape[-1] == 3:
             if ax is None:
+                plt.title(title)
                 img = plt.imshow(self.features)
+                plt.show()
             else:
                 img = ax.imshow(self.features)
+                ax.set_title(title)
         else:
             return None  # Unsupported feature shape for plotting
-
-        if ax is None:
-            plt.title(title)
-            plt.colorbar(img)
-            plt.show()
-        else:
-            ax.set_title(title)
-        return img

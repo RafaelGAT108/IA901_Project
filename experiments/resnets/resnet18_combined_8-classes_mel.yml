@@ -1,6 +1,5 @@
-# Experiment configuration for resnet18 on the combined dataset.
-
-experiment: resenet18_combined_8-classes_spectogram
+# Experiment configuration
+experiment: resnet18_combined_8-classes_npy_mel
 
 # Callbacks
 checkpoint_monitor: val_f1_macro
@@ -14,7 +13,7 @@ max_epochs: 100
 precision: 16-mixed
 seed: 42
 batch_size: 32
-num_workers: 4
+num_workers: 8
 sampler: null
 
 # Model
@@ -36,7 +35,7 @@ gamma: 0.1
 
 # Data
 dataset:
-  name: combined
+  name: Combined_ICBHI_KAUH
   classes:
     - Asthma
     - Bronchiectasis
@@ -47,11 +46,4 @@ dataset:
     - Pneumonia
     - URTI
   num_channels: 1
-  preprocess:
-    - Window: {window_length: 5, hop_length: 5}
-    - Resample: {target_sr: 22050}
-    - NormalizeAudio: {}
-
-# Transforms are read by LungSoundDataModule.get_transforms().
-transforms:
-  - Spectrogram: {n_fft: 2048, hop_length: 512}
+  feature_extractor: MelSpectrogram

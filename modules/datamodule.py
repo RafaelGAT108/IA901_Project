@@ -1,14 +1,15 @@
 """
 Lung Sound Classification DataModule using PyTorch Lightning.
 """
+import numpy as np
 import torch
 import lightning as L
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
+import torchvision.transforms as T
 from typing import Any
 
-from modules.dataset import KAUHAudioDataset, ICBHIAudioDataset, CombinedAudioDataset, LungSoundAudioDataset, DIAGNOSIS
-import modules.transforms as T
+from modules.dataset import KAUHFeaturesDataset, ICBHIFeaturesDataset, CombinedFeaturesDataset, LungSoundFeaturesDataset, DIAGNOSIS
 
 class LungSoundDataModule(L.LightningDataModule):
     """ PyTorch Lightning DataModule for lung sound datasets. """
@@ -23,20 +24,20 @@ class LungSoundDataModule(L.LightningDataModule):
                 - name (str): Name of the dataset to use (e.g. "ICBHI", "KAUH", "combined").
                 - classes (list[str]): List of class names to include in the dataset. If not provided, defaults to all classes.
                 - num_channels (int): Number of channels of the features.
+                - feature_extractor (str): Name of the feature extractor used during preprocessing. This is used to determine how to load the features in the dataset class.
             }
             - batch_size (int): Batch size for the dataloaders.
             - num_workers (int): Number of worker processes for data loading.
             - sampler (str): Type of sampler to use for the training dataloader (e.g. "equalizer"). If None, no sampler is used.
             - seed (int): Random seed for reproducibility.
-            - transforms (dict): Dictionary of transformations for each split (train, val, test). Each value can be either a Compose object or a list of transformations.
             ```
             data_path (str): Path to the data directory.
         """
         super().__init__()
         self.AVAILABLE_DATASETS = {
-            "ICBHI": ICBHIAudioDataset,
-            "KAUH": KAUHAudioDataset,
-            "combined": CombinedAudioDataset,
+            "ICBHI": ICBHIFeaturesDataset,
+            "KAUH": KAUHFeaturesDataset,
+            "Combined_ICBHI_KAUH": CombinedFeaturesDataset,
         }
 
         # Load dataset configurations
@@ -47,18 +48,16 @@ class LungSoundDataModule(L.LightningDataModule):
             raise ValueError(f"Invalid dataset: {dataset_name}. Choose from: {tuple(self.AVAILABLE_DATASETS)}")
 
         self.data_path = data_path
-        self.dataset_class: type[LungSoundAudioDataset] = self.AVAILABLE_DATASETS[dataset_name]
+        self.dataset_class: type[LungSoundFeaturesDataset] = self.AVAILABLE_DATASETS[dataset_name]
         self.classes = dataset_config.get("classes", DIAGNOSIS)
         self.num_channels = dataset_config.get("num_channels", 1)
+        self.feature_extractor = dataset_config.get("feature_extractor", "STFT")
 
         # General configurations
         self.batch_size = config.get("batch_size", 16)
         self.num_workers = config.get("num_workers", 2)
         self.sampler = config.get("sampler", None)
         self.seed = config.get("seed", 42)
-
-        # Load transformations
-        self.transforms = self.get_transforms(config)
 
 
     def setup(self, stage: str | None = None) -> None:
@@ -75,27 +74,10 @@ class LungSoundDataModule(L.LightningDataModule):
         return self.dataset_class(
             root=self.data_path,
             split=split,
-            transform=self.transforms,
-            classes=self.classes
+            feature_extractor=self.feature_extractor,
+            classes=self.classes,
+            random_seed=self.seed,
         )
-
-
-    @staticmethod
-    def get_transforms(config: dict) -> Any:
-        """ Load the transformations from the configuration. """
-        transformations = config.get("transforms", {})
-        if isinstance(transformations, T.Compose):
-            return transformations
-        if isinstance(transformations, list):
-            operations = []
-            for transform in config["transforms"]:
-                for name, params in transform.items():
-                    transform_class = getattr(T, name, None)
-                    if transform_class is None:
-                        raise ValueError(f"Transform '{name}' not found in modules.transforms.")
-                    operations.append(transform_class(**params))
-            return T.Compose(operations)
-        raise ValueError("Transforms must be either a Compose object or a list of transformations.")
 
 
     @staticmethod
@@ -158,38 +140,47 @@ class LungSoundDataModule(L.LightningDataModule):
             collate_fn=self.test_collate_fn,
         )
 
-
     @staticmethod
-    def custom_collate_fn(batch: list) -> tuple[torch.Tensor, torch.Tensor]:
-        """ Custom collate function to handle variable-length audio samples. """
-        batch_samples = []
-        batch_labels = []
-        for sample, label in batch:
-            if not isinstance(sample.features, torch.Tensor):
-                # Convert features to tensor if they are not already
-                sample.features = torch.tensor(sample.features, dtype=torch.float32)
-            if sample.features.ndim == 2:
+    def convert_to_tensor(sample: Any) -> torch.Tensor:
+        """ Utility function to convert a sample to a PyTorch tensor. """
+        if isinstance(sample, torch.Tensor):
+            return sample.to(torch.float32)
+        elif isinstance(sample, np.ndarray):
+            tensor = torch.tensor(sample, dtype=torch.float32)
+            if tensor.ndim == 2:
                 # Add channel dimension for 2D features (e.g. spectrograms)
-                sample.features = sample.features.unsqueeze(0)
-            batch_samples.append(sample.features)
+                return tensor.unsqueeze(0)
+            elif tensor.ndim == 3 and tensor.shape[-1] in (1, 3):
+                # Permute dimensions for 3D features with channel last (e.g. RGB images)
+                return tensor.permute(2, 0, 1)
+            else:
+                raise ValueError(f"Unsupported feature shape: {tensor.shape}.")
+        else:
+            raise TypeError(f"Unsupported sample type: {type(sample)}. Expected np.ndarray or torch.Tensor.")
+
+    @staticmethod
+    def custom_collate_fn(batch: list) -> tuple[torch.Tensor, torch.Tensor, list[int]]:
+        """ Custom collate function to handle variable-length audio samples. """
+        batch_features = []
+        batch_labels = []
+        batch_sr = []
+        for sample, label in batch:
+            batch_features.append(LungSoundDataModule.convert_to_tensor(sample.features))
             batch_labels.append(label)
-        return torch.stack(batch_samples), torch.tensor(batch_labels, dtype=torch.long)
+            batch_sr.append(sample.sr)
+        return torch.stack(batch_features), torch.tensor(batch_labels, dtype=torch.long), batch_sr
 
 
     @staticmethod
-    def test_collate_fn(batch: list) -> tuple[torch.Tensor, torch.Tensor, list[str]]:
+    def test_collate_fn(batch: list) -> tuple[torch.Tensor, torch.Tensor, list[int], list[str]]:
         """ Custom collate function for the test set to also return file paths. """
-        batch_samples = []
+        batch_features = []
         batch_labels = []
+        batch_sr = []
         batch_paths = []
         for sample, label in batch:
-            if not isinstance(sample.features, torch.Tensor):
-                # Convert features to tensor if they are not already
-                sample.features = torch.tensor(sample.features, dtype=torch.float32)
-            if sample.features.ndim == 2:
-                # Add channel dimension for 2D features (e.g. spectrograms)
-                sample.features = sample.features.unsqueeze(0)
-            batch_samples.append(sample.features)
+            batch_features.append(LungSoundDataModule.convert_to_tensor(sample.features))
             batch_labels.append(label)
-            batch_paths.append(str(sample.wav_file))
-        return torch.stack(batch_samples), torch.tensor(batch_labels, dtype=torch.long), batch_paths
+            batch_sr.append(sample.sr)
+            batch_paths.append(sample.info)
+        return torch.stack(batch_features), torch.tensor(batch_labels, dtype=torch.long), batch_sr, batch_paths
