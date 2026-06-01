@@ -185,7 +185,7 @@ O script percorre todas as pastas correspondentes às doenças respiratórias no
 | Duração média | 21,49 s |
 
 O histograma a seguir ilusta distribuição das durações dos sinais de áudio, evidenciando uma concentração de amostras com duração de 20 segundos. No entanto, observa-se a existência de gravações com durações discrepantes, alcançando valores significativamente inferiores e superiores à média do conjunto de dados. Essa heterogeneidade temporal pode dificultar o processo de treinamento dos modelos de aprendizado profundo, devido à inconsistência no comprimento das entradas. Como possível abordagem para minimizar esse problema, está sendo considerada a utilização apenas das amostras com durações próximas ao valor predominante observado no dataset, uma vez que essas representam a maior parte das gravações disponíveis. Alternativamente, também está em análise a aplicação de técnicas de padronização temporal durante o pré-processamento dos sinais.
-<img src="results/distribuição de duração dos audios.png" width="700">
+<img src="assets/preliminary_results/distribuição de duração dos audios.png" width="700">
 
 Adicionalmente, foram feitas análises individuais para cada classe do dataset, permitindo uma análise mais detalhada da distribuição das durações entre as diferentes patologias respiratórias. A análise individual das classes permitiu observar diferenças importantes tanto na quantidade de amostras quanto na distribuição das durações dos sinais de áudio.
 Para a classe Asthma (Asma), observa-se apenas uma amostra, com duração concentrada em aproximadamente 20 segundos. De forma semelhante, as classes Bronchiectasis (Bronquiectasia) e Bronchiolitis (Bronquiolite) apresentam, respectivamente, 16 e 13 amostras, todas concentradas na mesma duração.
@@ -216,7 +216,7 @@ Após o pré-processamento, diferentes representações espectrais e temporais f
 
 Entre as representações extraídas, o **Mel Spectrogram** foi utilizado para visualização qualitativa dos padrões espectrais presentes nos sinais respiratórios.
 
-<img src="results/mel spectrogram.png" width="900">
+<img src="assets/preliminary_results/mel spectrogram.png" width="900">
 
 A análise do Mel Spectrogram evidencia diferenças entre os padrões respiratórios das patologias e o sinal considerado saudável. No caso do sinal Healthy (Saudável), observa-se uma distribuição espectral homogênea e contínua, com predominância de energia concentrada nas baixas frequências, comportamento esperado em ciclos respiratórios fisiológicos. Há menor presença de eventos impulsivos e menor variabilidade temporal, indicando estabilidade do fluxo aéreo pulmonar. Já nos sinais patológicos, percebe-se aumento da complexidade espectral e mudanças importantes na distribuição temporal da energia:
 
@@ -249,7 +249,7 @@ Realizando as etapas descritas na Metodologia e no Workflow, obteu-se os resulta
 | phase      | URTI           |    0        | 0        |   0        |         5 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
 
 
-[Download results_ibchi.xlsx](results/results_icbhi.xlsx)
+[Download results_ibchi.xlsx](assets/preliminary_results/results_icbhi.xlsx)
 
 | feature            | class          | precision | recall | f1_score | support | accuracy_global | precision_global | recall_global | f1_global |
 | ------------------ | -------------- | --------- | ------ | -------- | ------- | --------------- | ---------------- | ------------- | --------- |
@@ -261,7 +261,7 @@ Realizando as etapas descritas na Metodologia e no Workflow, obteu-se os resulta
 | phase              | Pneumonia      | 0.0000    | 0.0000 | 0.0000   | 7       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
 | phase              | URTI           | 0.0000    | 0.0000 | 0.0000   | 5       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
 
-[Download results_mixed.xlsx](results/results_mixed.xlsx)
+[Download results_mixed.xlsx](assets/preliminary_results/results_mixed.xlsx)
 
 
 | feature     | class          | precision | recall | f1_score | support | accuracy_global | precision_global | recall_global | f1_global |
@@ -274,16 +274,16 @@ Realizando as etapas descritas na Metodologia e no Workflow, obteu-se os resulta
 | phase       | Pneumonia      | 0.0000    | 0.0000 | 0.0000   | 16      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
 | phase       | URTI           | 0.0000    | 0.0000 | 0.0000   | 22      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
 
-[Download results_6sec.xlsx](results/results_6sec.xlsx)
+[Download results_6sec.xlsx](assets/preliminary_results/results_6sec.xlsx)
 
 Como pode-se observar na figura abaixo, a quantidade de amostras para a validação da classe COPD é muito superior as demais. Como a divisão entre treino e validação foi feito na proporção 80%-20%, isso implica que durante o treinamento o modelo também lida com muito mais dados da classe COPD do que de quaisquer outra classe, o que pode tornar o modelo enviesado a aprender apenas ela. Essa afirmação se fortalece ao analisar as métricas de avaliação por classe, conforme disposto nas Tabelas. Embora na média global o modelo se encontre com acurária em torno de 80% para as 8 transformações avaliadas, ao analisar os valores por classe vemos uma diferença substancial, e que predomina com valores equivalente apenas para classe de maior quantidade de amostras.
-![confusion_icbhi](results/confusion_icbhi.png)
+![confusion_icbhi](assets/preliminary_results/confusion_icbhi.png)
 
 Após adicionar mais amostras para as classes Asma, Pneumonia e saudável, a desigualdade amostral ainda continuou altamente presente. Com isso, o mesmo comportamente tendencioso para a classe COPD visto anteriormente se repete aqui, tanto ao analisar a matriz de confusão quanto observado nas métricas de avaliação por classe, dado a tabela.
-![confusion_mixed](results/confusion_mixed.png)
+![confusion_mixed](assets/preliminary_results/confusion_mixed.png)
 
 Ao realizar o data-augmentation fazendo o clip dos audios em 6 segundos ao invés de mantê-los em 20 segundos como nos casos anteriores, observa-se alguns impactos significativos. Embora a desigualdade amostral permaneça, agora é possível observar que houve diferenças dos resultados entre as 8 transformações analisadas, ao invés de todas se manterem em torno de 80% de acurácia como nos casos anteriores.
-![confusion_6sec](results/confusion_6sec.png)
+![confusion_6sec](assets/preliminary_results/confusion_6sec.png)
 
 Sendo assim, é possível resumir os resultados como:
 
