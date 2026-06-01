@@ -43,13 +43,15 @@ class LungSoundClassifier(L.LightningModule):
 
         # Load model
         self.classes = self.hparams.dataset["classes"]
-        self.model = LungSoundModel(
+        self.lung_sound_model = LungSoundModel(
             name=self.hparams.model["name"],
             num_channels=self.hparams.dataset["num_channels"],
             num_classes=len(self.classes),
             pretrained=self.hparams.model.get("pretrained", None),
             freeze_layers=self.hparams.model.get("freeze_layers", False)
         )
+        self.model = self.lung_sound_model.model
+        self.trainable_params = self.lung_sound_model.trainable_params
 
         # Configure loss function
         self.configure_loss()
@@ -68,13 +70,11 @@ class LungSoundClassifier(L.LightningModule):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """ Forward pass. """
-        return self.model.model(x)
+        return self.model(x)
 
 
     def configure_optimizers(self) -> tuple[list, list] | optim.Optimizer:
         """ Configure optimizer and learning rate scheduler. """
-        params = self.model.trainable_params
-
         opt = self.hparams.optimizer
         sch = self.hparams.lr_scheduler
         lr = self.hparams.learning_rate
@@ -84,11 +84,11 @@ class LungSoundClassifier(L.LightningModule):
         gamma = self.hparams.gamma
 
         if opt == "AdamW":
-            optimizer = optim.AdamW(params, lr=lr, weight_decay=wd)
+            optimizer = optim.AdamW(self.trainable_params, lr=lr, weight_decay=wd)
         elif opt == "Adam":
-            optimizer = optim.Adam(params, lr=lr, weight_decay=wd)
+            optimizer = optim.Adam(self.trainable_params, lr=lr, weight_decay=wd)
         elif opt == "SGD":
-            optimizer = optim.SGD(params, lr=lr, momentum=mtm)
+            optimizer = optim.SGD(self.trainable_params, lr=lr, momentum=mtm)
         else:
             raise ValueError(f"Invalid optimizer: {opt}.")
 
@@ -112,7 +112,7 @@ class LungSoundClassifier(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         """ Training step for Pytorch Lightning. """
-        inputs, labels = batch
+        inputs, labels, sr = batch
         labels = labels.to(dtype=torch.long)
         outputs = self(inputs)
         loss = self.criterion(outputs, labels)
@@ -135,7 +135,7 @@ class LungSoundClassifier(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         """ Validation step for Pytorch Lightning. """
-        inputs, labels = batch
+        inputs, labels, sr = batch
         labels = labels.to(dtype=torch.long)
         outputs = self(inputs)
         loss = self.criterion(outputs, labels)
@@ -185,7 +185,7 @@ class LungSoundClassifier(L.LightningModule):
 
     def test_step(self, batch, batch_idx):
         """ Test step for Pytorch Lightning. """
-        inputs, labels, info = batch
+        inputs, labels, sr, info = batch
         labels = labels.to(dtype=torch.long)
         outputs = self(inputs)
         loss = self.criterion(outputs, labels)

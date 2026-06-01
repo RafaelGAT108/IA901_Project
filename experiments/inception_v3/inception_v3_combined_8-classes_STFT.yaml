@@ -1,0 +1,48 @@
+# Experiment configuration
+experiment: inception_v3_combined_8-classes_STFT
+
+# Callbacks
+checkpoint_monitor: val_f1_macro
+checkpoint_mode: max
+early_stop_monitor: val_f1_macro
+early_stop_mode: max
+patience: 10
+
+# Training
+max_epochs: 100
+precision: 16-mixed
+seed: 42
+batch_size: 32
+num_workers: 8
+
+# Model
+model:
+  name: inception_v3
+  pretrained: null
+  freeze_layers: false
+
+# Optimization
+criterion: CrossEntropyLoss
+optimizer: AdamW
+learning_rate: 0.0001
+weight_decay: 0.00001
+momentum: null
+lr_scheduler: StepLR
+step_size: 7
+gamma: 0.1
+
+# Data
+sampler: null
+dataset:
+  name: Combined_ICBHI_KAUH
+  classes:
+    - Asthma
+    - Bronchiectasis
+    - Bronchiolitis
+    - COPD
+    - Healthy
+    - Lung Fibrosis
+    - Pneumonia
+    - URTI
+  num_channels: 1
+  feature_extractor: STFT

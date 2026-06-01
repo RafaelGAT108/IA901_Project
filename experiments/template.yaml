@@ -1,0 +1,53 @@
+# Experiment configuration for resnet18 on the combined dataset.
+
+experiment: resenet18_combined_8-classes_npy_STFT
+
+# Callbacks
+checkpoint_monitor: ${checkpoint_metric}  # Metric to monitor for saving checkpoints (e.g., "val_f1_macro")
+checkpoint_mode: ${checkpoint_mode}       # e.g., "max", "min"
+early_stop_monitor: ${early_stop_metric}  # Metric to monitor for early stopping (e.g., "val_f1_macro")
+early_stop_mode: ${early_stop_mode}       # e.g., "max", "min"
+patience: ${early_stop_patience}          # Number of consecutive epochs to wait before stopping (e.g., 10)
+
+# Training
+max_epochs: ${max_epochs}   # Maximum number of training epochs
+precision: ${precision}     # Precision for training (e.g., "16-mixed")
+seed: ${seed}               # Random seed for reproducibility
+batch_size: ${batch_size}   # Batch size for training
+num_workers: ${num_workers} # Number of worker processes for data loading
+
+# Model
+model:
+  name: ${model_name}                   # Model name (e.g., "resnet18", "densenet121")
+  pretrained: ${pretrained}             # Whether to use pretrained weights (e.g., "IMAGENET1K_v1" or null)
+  freeze_layers: ${freeze_layers}       # Whether to freeze layers during training (true or false)
+
+# Optimization
+criterion: ${criterion}         # Loss function (e.g., "CrossEntropyLoss")
+optimizer: ${optimizer}         # Optimizer type (e.g., "AdamW")
+learning_rate: ${learning_rate} # Learning rate for the optimizer
+weight_decay: ${weight_decay}   # Weight decay for the optimizer
+momentum: ${momentum}           # Momentum for the optimizer
+lr_scheduler: ${lr_scheduler}   # Learning rate scheduler type (e.g., "StepLR")
+step_size: ${step_size}         # Step size for the learning rate scheduler
+gamma: ${gamma}                 # Gamma for the learning rate scheduler
+
+# Data
+sampler: ${sampler}         # Sampler for data loading (e.g., "equalizer")
+dataset:
+  name: ${dataset_name}     # Dataset name (e.g., "ICBHI", "KAUH", "Combined_ICBHI_KAUH")
+  classes:                  # A list of class names in the dataset, can be a subset of the following:
+    - Asthma
+    - Bronchiectasis
+    - Bronchiolitis
+    - Bronchitis
+    - COPD
+    - Healthy
+    - Heart Failure
+    - LRTI
+    - Lung Fibrosis
+    - "Pleural Effusion"
+    - Pneumonia
+    - URTI
+  num_channels: ${num_channels}           # Number of channels of the input data
+  feature_extractor: ${feature_extractor} # Type of feature extractor used to generate features (e.g., "STFT", "MelSpectrogram", "MFCC", "Chroma")
