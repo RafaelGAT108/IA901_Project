@@ -92,7 +92,7 @@ class LungSoundFeatures():
         Can be extended to support other formats in the future.
         """
         if self.file_path.suffix == ".npz":
-            data = np.load(self.file_path)
+            data = np.load(self.file_path, allow_pickle=True)
             self.features = data["features"]
             self.sr = int(data["sr"])
         else:
@@ -125,10 +125,11 @@ class LungSoundFeatures():
             img = librosa.display.specshow(features, sr=self.sr, ax=ax, **params)
             if ax is None:
                 plt.title(title)
+                plt.colorbar(img)
                 plt.show()
             else:
                 ax.set_title(title)
-            plt.colorbar(img, ax=ax)
+                plt.colorbar(img, ax=ax)
             return img
         # If it's a 3D array with 3 channels, we assume it's an RGB image and use imshow
         elif features.ndim == 3 and features.shape[-1] == 3:
