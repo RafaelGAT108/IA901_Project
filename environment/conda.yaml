@@ -1,0 +1,9 @@
+
+name: lung_sounds
+channels:
+  - defaults
+dependencies:
+  - python=3.13.12
+  - pip=26.0.1
+  - pip:
+      - -r requirements.txt
