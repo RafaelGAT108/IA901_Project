@@ -2,26 +2,19 @@
 
 ## Apresentação
 
-O presente projeto foi originado no contexto das atividades da disciplina de pós-graduação *IA901 - Análise de Imagens e Reconhecimento de Padrões*, 
-oferecida no primeiro semestre de 2026, na Unicamp, sob supervisão da Profa. Dra. Leticia Rittner, do Departamento de Engenharia de Computação e Automação (DCA) da Faculdade de Engenharia Elétrica e de Computação (FEEC).
-
-> Incluir nome RA e foco de especialização de cada membro do grupo. Os projetos devem ser desenvolvidos em duplas ou trios.
+O presente projeto foi originado no contexto das atividades da disciplina de pós-graduação *IA901 - Análise de Imagens e Reconhecimento de Padrões*, oferecida no primeiro semestre de 2026, na Unicamp, sob supervisão da Profa. Dra. Leticia Rittner, do Departamento de Engenharia de Computação e Automação (DCA) da Faculdade de Engenharia Elétrica e de Computação (FEEC).
 
 | Nome                    | RA     | Curso                                 |
 |-------------------------|--------|---------------------------------------|
-| Rafael Ávila dos Santos | 300905 | Doutorado em Engenharia Elétrica     |
-| Letícia Lopes Mendes Da Silva  | 184423 | Graduação em Engenharia de Computação |
-| Sofia Ballerini de Vasconcellos  | 299904 | Doutorado em                          |
+| Rafael Ávila dos Santos | 300905 | Doutorado em Engenharia Elétrica |
+| Letícia Lopes Mendes Da Silva | 184423 | Graduação em Engenharia de Computação |
+| Sofia Ballerini de Vasconcellos | 299904 | Doutorado em Engenharia Elétrica |
 
 ## Descrição do Projeto
 
-> Descrição do objetivo principal do projeto, incluindo contexto gerador, motivação, etc. Qual problema você pretende solucionar? Qual a relevância do problema e o impacto da solução do mesmo?
-
-O objetivo final do projeto é utilizar sons pulmonares para classificação de doenças respiratórias, como asma, pneumonia, etc. Para isso, serão utilizadas técnicas de processamento de imagens para converter os sinais áudios originais em espectrogramas, como, por exemplo, a transformada curta de Fourier (stft), com a intenção de manter as informações em relação ao tempo e à frequência.
+O objetivo do projeto é utilizar sons pulmonares para classificação de doenças respiratórias, como asma, pneumonia, etc. Para isso, serão utilizadas técnicas de processamento de imagens para converter os sinais áudios originais em espectrogramas, como, por exemplo, a transformada curta de Fourier (stft), com a intenção de manter as informações em relação ao tempo e à frequência.
 
 ## Metodologia
-
-> Proposta de metodologia incluindo especificação de quais técnicas pretende-se explorar. Espera-se que nesta entrega você já seja capaz de descrever de maneira mais específica (do que na Entrega 1) quais as técnicas a serem empregadas em cada etapa do projeto.
 
 - Inicialmente, o sinal de áudio foi transformado para o domínio tempo-frequência utilizando a Short-Time Fourier Transform (STFT). A partir dessa representação, diferentes transformadas foram extraídas, incluindo espectrograma em escala logarítmica, Mel spectrogram, coeficientes cepstrais Mel-frequency (MFCC), derivadas temporais dos MFCCs (delta coefficients), características cromáticas (Chroma), contraste espectral, Constant-Q Transform (CQT) e fase espectral. As equações destas transformações são apresentadas abaixo:
 
@@ -143,7 +136,7 @@ $$
 $$
 
 Como métricas de avaliação será utilizado a acurácia do modelo, além das outras métricas como F1-Score, Recall e Precision tanto no aspecto de classificação global quanto individual por cada classe.
-Para os resultados preliminares, o dataset será avaliado em três etapas: A primeira avaliação se dará utilizando o dataset ICBHI2017 com os audios de 20 segundos de duração. No segundo momento, esse dataset será complementado com amostras do dataset KAUH para as classes Asma, Saudável e Pneumonia. Esse procedimento foi feito manualmente levando em consideração as labels presentes no próprio nome dos audios, indicando a qual classe eles pertenciam. Por fim, a terceira etapa consiste em realizar as transformações no dataset mesclado, porém, para cada 6 segundo dos audios, fazendo assim o data-augmentation.
+Para os resultados preliminares, o dataset será avaliado em três etapas: A primeira avaliação se dará utilizando o dataset ICBHI2017 com os audios de 20 segundos de duração. No segundo momento, esse dataset será complementado com amostras do dataset KAUH para as classes Asma, Saudável e Pneumonia. Esse procedimento foi feito manualmente levando em consideração as labels presentes no próprio nome dos audios, indicando a qual classe eles pertenciam. Por fim, a terceira etapa consiste em realizar as transformações no dataset mesclado, porém, para cada 6 segundo dos audios, fazendo assim o data-augmentation. Essa abordagem foi utilizada em um dos trabalhos utilizados como referência para este projeto [3].
 O treinamento se dará via Transfer Learning com a rede InceptionV3, treinada por 10 épocas e com a divisão Holdout 80% para treinamento e 20% para validação.
 
 ## Bases de Dados e Evolução
@@ -171,30 +164,17 @@ Este projeto foi desenvolvido principalmente em Python, com a maior parte da exp
 	- **scikit-learn:** split de conjuntos, métricas e utilitários de avaliação.
 	- **TensorFlow / Keras:** usado em experimentos de treinamento de modelos de classificação.
 
-- **Ferramentas ainda a serem utilizadas:**
-Pretende-se migrar parte dos experimentos para o ecossistema **PyTorch**, principalmente devido à maior flexibilidade para construção de pipelines experimentais, melhor integração com tarefas de deep learning e maior controle sobre etapas de treinamento.
-
-Também pretende-se utilizar o **TensorBoard** para monitoramento dos experimentos, permitindo acompanhar métricas como perda, acurácia, curvas de treinamento e comparação entre diferentes execuções.
+**Ferramentas ainda a serem utilizadas:**
+Nos próximos passos, pretende-se migrar parte dos experimentos para o **PyTorch** e **PyTorch Lightining**, principalmente devido à maior flexibilidade para construção de pipelines experimentais, melhor integração com tarefas de deep learning e maior controle sobre etapas de treinamento. Também pretende-se utilizar o **TensorBoard** ou **WandB** para monitoramento dos experimentos, permitindo acompanhar métricas como perda, acurácia, curvas de treinamento e comparação entre diferentes execuções.
 
 ## Workflow
 
-> Use uma ferramenta que permita desenhar o workflow e salvá-lo como uma imagem (Draw.io, por exemplo). Insira a imagem nesta seção.
-> Você pode optar por usar um gerenciador de workflow (Sacred, Pachyderm, etc) e nesse caso use o gerenciador para gerar uma figura para você.
-> Lembre-se que o objetivo de desenhar o workflow é ajudar a quem quiser reproduzir seus experimentos.
-> Mais informações sobre o workflow podem ser encontradas nos materiais de apoio no Classroom (Reprodutibilidade em pesquisa computacional - workflow).
-
-![workflow](workflow.png)
-
-
-
+![workflow](assets/workflow.png)
 
 ## Experimentos e Resultados preliminares
 
-> Descreva de forma sucinta e organizada os experimentos realizados.
-> Para cada experimento, apresente os principais resultados obtidos.
-> Aponte os problemas encontrados nas soluções testadas até aqui.
+### Análise Exploratória
 
-> ### Análise Exploratória
 - Esta etapa do projeto consistiu na realização de uma análise exploratória da distribuição das durações dos sinais de áudio respiratório.
 O script percorre todas as pastas correspondentes às doenças respiratórias no dataset, identifica os arquivos .wav e calcula a duração de cada gravação utilizando a biblioteca Librosa. As durações e respectivas classes são armazenadas para posterior análise estatística. Foram analisadas 920 amostras de áudio:
 
@@ -236,7 +216,7 @@ Após o pré-processamento, diferentes representações espectrais e temporais f
 
 Entre as representações extraídas, o **Mel Spectrogram** foi utilizado para visualização qualitativa dos padrões espectrais presentes nos sinais respiratórios.
 
-  <img src="results/mel spectrogram.png" width="900">
+<img src="results/mel spectrogram.png" width="900">
 
 A análise do Mel Spectrogram evidencia diferenças entre os padrões respiratórios das patologias e o sinal considerado saudável. No caso do sinal Healthy (Saudável), observa-se uma distribuição espectral homogênea e contínua, com predominância de energia concentrada nas baixas frequências, comportamento esperado em ciclos respiratórios fisiológicos. Há menor presença de eventos impulsivos e menor variabilidade temporal, indicando estabilidade do fluxo aéreo pulmonar. Já nos sinais patológicos, percebe-se aumento da complexidade espectral e mudanças importantes na distribuição temporal da energia:
 
@@ -255,7 +235,7 @@ A análise do Mel Spectrogram evidencia diferenças entre os padrões respirató
 No caso do COPD, observa-se um comportamento diferente dos demais. Parte do espectrograma contém atividade espectral normal do sinal respiratório, enquanto uma grande região escura aparece no restante da imagem. Isso ocorre devido ao zero padding aplicado durante o pré-processamento para padronizar todos os áudios em 20 segundos. Portanto, parte desse comportamento visual não está associada diretamente à doença, mas sim ao processo de padronização aplicado no dataset. Mesmo assim, na região correspondente ao áudio real, o COPD ainda apresenta um padrão mais irregular e fragmentado em comparação ao saudável, o que está de acordo com alterações respiratórias típicas da doença.
 
 
-> ### Resultados Preliminares
+### Resultados Preliminares
 
 Realizando as etapas descritas na Metodologia e no Workflow, obteu-se os resultados das métricas de avaliação para as 8 transformações analisadas, conforme apresentadas nas tabelas abaixo (Para Download, as Tabelas completas e em gráfico exemplos das tabelas parciais):
 
@@ -314,7 +294,11 @@ Sendo assim, é possível resumir os resultados como:
 
 ## Próximos passos
 
-Nas etapas até aqui as transformações do sinal original de audio (MFCC, melspectrogram, etc.) tem se mostrado eficazes para o uso posterior em aprendizado de máquina e classificação das doenças pulmonares. O principal gargalo encontrado até o momento é o desbalanceamento das amostras por classe, o que torna o classificador enviesado. Sendo assim, um dos nossos próximos passos é justamente buscar alternativas para lidar com esse problema. Para além, também buscaremos comparar os resultados utilizando outros algoritmos de aprendizado de máquina.
+Nas etapas até aqui, as transformações do sinal original de audio (MFCC, melspectrogram, etc.) tem se mostrado eficazes para o uso em aprendizado de máquina e classificação das doenças pulmonares. O principal gargalo encontrado até o momento é o desbalanceamento das amostras por classe, o que torna o classificador enviesado. Sendo assim, um dos nossos próximos passos é justamente buscar alternativas para lidar com esse problema.
+
+Além disso, aqui foram utilizadas imagens fictícias geradas a partir da biblioteca `librosa`, utilizando a função `librosa.display.specshow`, com armazenamento das imagens no formato .png. Essa abordagem permitiu tratar os espectrogramas como imagens convencionais, facilitando a integração com o tensorflow. No entanto, essa conversão introduz uma etapa adicional de renderização visual, dependente de fatores como resolução, interpolação e mapeamento de cores, fazendo com que a representação utilizada pelo modelo deixe de corresponder diretamente aos arrays numéricos originais gerados pelas transformadas. Por isso, pretendemos investigar o uso direto dos arrays numéricos, armazenados em formatos como .npy ou .pt, preservando diretamente os valores produzidos pelas operações espectrais.
+
+Para além, também buscaremos comparar os resultados utilizando outros algoritmos de aprendizado de máquina.
 
 ## Uso de IA Generativa
 
@@ -322,6 +306,22 @@ Utilizou-se a IA para auxílio em comandos do markdown, bem como em ajustes de c
 
 ## Referências
 
-1. Rocha BM et al. (2019) "An open access database for the evaluation of respiratory sound classification algorithms" Physiological Measurement 40 035001
-2. PARK, Jinho et al. Lung Sound Classification Model for On-Device AI. Applied Sciences, v. 15, n. 17, p. 9361, 2025.
-3. MCFEE, Brian et al. librosa/librosa: 0.10. 0. zenodo, 2023.
+1. FRAIWAN, Mohammad; FRAIWAN, Luay; KHASSAWNEH, Basheer; IBNIAN, Ali.  
+   *A dataset of lung sounds recorded from the chest wall using an electronic stethoscope*.  
+   Data in Brief, v. 35, p. 106913, 2021.  
+   DOI: https://doi.org/10.1016/j.dib.2021.106913
+
+2. ROCHA, Bruno M. et al.  
+   *An open access database for the evaluation of respiratory sound classification algorithms*.  
+   Physiological Measurement, v. 40, n. 3, p. 035001, 2019.  
+   DOI: https://doi.org/10.1088/1361-6579/ab03ea
+
+3. WANASINGHE, Thinira; BANDARA, Sakuni; MADUSANKA, Supun; MEEDENIYA, Dulani Apeksha; BANDARA, Meelan; DE LA TORRE DÍEZ, Isabel.  
+   *Lung Sound Classification With Multi-Feature Integration Utilizing Lightweight CNN Model*.  
+   IEEE Access, v. 12, p. 21262–21276, 2024.
+
+4. PARK, Jinho et al.  
+   *Lung Sound Classification Model for On-Device AI*.  
+   Applied Sciences, v. 15, n. 17, p. 9361, 2025.
+
+5. MCFEE, Brian et al. librosa/librosa: 0.10. 0. zenodo, 2023.
