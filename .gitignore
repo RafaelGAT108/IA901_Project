@@ -10,5 +10,5 @@ logs/
 checkpoints/
 *.ckpt
 
-pycache__/
+__pycache__/
 *.pyc
