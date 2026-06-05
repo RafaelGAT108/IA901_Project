@@ -45,6 +45,7 @@ DIAGNOSIS_MAP = {
     "asthma": "Asthma",
     "bronchiectasis": "Bronchiectasis",
     "bronchiolitis": "Bronchiolitis",
+    "bronchitis": "Bronchitis",
     "bron": "Bronchitis",
     "copd": "COPD",
     "healthy": "Healthy",
