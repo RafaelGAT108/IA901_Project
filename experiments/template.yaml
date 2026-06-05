@@ -1,6 +1,6 @@
 # Experiment configuration for resnet18 on the combined dataset.
 
-experiment: resenet18_combined_8-classes_npy_STFT
+experiment: ${experiment_name}  # Name of the experiment (e.g., "resnet18_combined_8-classes_STFT")
 
 # Callbacks
 checkpoint_monitor: ${checkpoint_metric}  # Metric to monitor for saving checkpoints (e.g., "val_f1_macro")
@@ -46,7 +46,7 @@ dataset:
     - Heart Failure
     - LRTI
     - Lung Fibrosis
-    - "Pleural Effusion"
+    - Pleural Effusion
     - Pneumonia
     - URTI
   num_channels: ${num_channels}           # Number of channels of the input data
