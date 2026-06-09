@@ -15,18 +15,29 @@ AVAILABLE_CNNS = {
     "densenet161": models.densenet161,
     "densenet169": models.densenet169,
     "densenet201": models.densenet201,
+    "efficientnet_b0": models.efficientnet_b0,
+    "efficientnet_b1": models.efficientnet_b1,
+    "efficientnet_b2": models.efficientnet_b2,
+    "efficientnet_b3": models.efficientnet_b3,
+    "efficientnet_b4": models.efficientnet_b4,
+    "efficientnet_b5": models.efficientnet_b5,
+    "efficientnet_b6": models.efficientnet_b6,
+    "efficientnet_b7": models.efficientnet_b7,
+    "efficientnet_v2_s": models.efficientnet_v2_s,
+    "efficientnet_v2_m": models.efficientnet_v2_m,
+    "efficientnet_v2_l": models.efficientnet_v2_l,
+    "mobilenet_v2": models.mobilenet_v2,
+    "mobilenet_v3_small": models.mobilenet_v3_small,
+    "mobilenet_v3_large": models.mobilenet_v3_large,
+    "vgg11": models.vgg11,
+    "vgg13": models.vgg13,
+    "vgg16": models.vgg16,
+    "vgg19": models.vgg19,
+    "vgg11_bn": models.vgg11_bn,
+    "vgg13_bn": models.vgg13_bn,
+    "vgg16_bn": models.vgg16_bn,
+    "vgg19_bn": models.vgg19_bn,
     "inception_v3": models.inception_v3,
-    "efficientnet-b0": models.efficientnet_b0,
-    "efficientnet-b1": models.efficientnet_b1,
-    "efficientnet-b2": models.efficientnet_b2,
-    "efficientnet-b3": models.efficientnet_b3,
-    "efficientnet-b4": models.efficientnet_b4,
-    "efficientnet-b5": models.efficientnet_b5,
-    "efficientnet-b6": models.efficientnet_b6,
-    "efficientnet-b7": models.efficientnet_b7,
-    "efficientnet-v2-s": models.efficientnet_v2_s,
-    "efficientnet-v2-m": models.efficientnet_v2_m,
-    "efficientnet-v2-l": models.efficientnet_v2_l,
 }
 
 # NOTE: Always verify the normalization and preprocessing steps required for each pre-trained model.
@@ -115,6 +126,57 @@ class LungSoundModel:
                 num_ftrs = model.classifier[1].in_features
                 model.classifier[1] = nn.Linear(num_ftrs, self.out_channels)
                 self.output_layer = model.classifier[1]
+
+            elif "mobilenet_v2" in self.name:
+                # Adjust the first convolutional layer to accept the specified number of input channels
+                old_features = model.features[0][0]
+                model.features[0][0] = nn.Conv2d(
+                    in_channels=self.in_channels,
+                    out_channels=old_features.out_channels,
+                    kernel_size=old_features.kernel_size,
+                    stride=old_features.stride,
+                    padding=old_features.padding,
+                    bias=False
+                )
+                self.input_layer = model.features[0][0]
+                # Adjust the output layer to match the number of classes
+                num_ftrs = model.classifier[1].in_features
+                model.classifier[1] = nn.Linear(num_ftrs, self.out_channels)
+                self.output_layer = model.classifier[1]
+
+            elif "mobilenet_v3" in self.name:
+                # Adjust the first convolutional layer to accept the specified number of input channels
+                old_features = model.features[0][0]
+                model.features[0][0] = nn.Conv2d(
+                    in_channels=self.in_channels,
+                    out_channels=old_features.out_channels,
+                    kernel_size=old_features.kernel_size,
+                    stride=old_features.stride,
+                    padding=old_features.padding,
+                    bias=False
+                )
+                self.input_layer = model.features[0][0]
+                # Adjust the output layer to match the number of classes
+                num_ftrs = model.classifier[3].in_features
+                model.classifier[3] = nn.Linear(num_ftrs, self.out_channels)
+                self.output_layer = model.classifier[3]
+
+            elif "vgg" in self.name:
+                # Adjust the first convolutional layer to accept the specified number of input channels
+                old_features = model.features[0]
+                model.features[0] = nn.Conv2d(
+                    in_channels=self.in_channels,
+                    out_channels=old_features.out_channels,
+                    kernel_size=old_features.kernel_size,
+                    stride=old_features.stride,
+                    padding=old_features.padding,
+                    bias=False
+                )
+                self.input_layer = model.features[0]
+                # Adjust the output layer to match the number of classes
+                num_ftrs = model.classifier[6].in_features
+                model.classifier[6] = nn.Linear(num_ftrs, self.out_channels)
+                self.output_layer = model.classifier[6]
 
             elif self.name == "inception_v3":
                 # Adjust the first convolutional layer to accept the specified number of input channels
