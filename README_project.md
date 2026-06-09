@@ -21,6 +21,8 @@ This repository uses public respiratory sound datasets and stores derived featur
 
 See [data/datasheet.pdf](data/datasheet.pdf) for more details.
 
+> Note: It is recommended to have at least **15 GB** of free disk space to store the raw, interim, and preprocessed data.
+
 ## Python environment
 
 ### Conda
@@ -40,7 +42,7 @@ conda env update -f environment/conda.yaml --prune
 
 ### Venv
 
-Alternatively, you can use a standard Python virtual environment (`venv`):
+Or, you can use a standard Python virtual environment (`venv`):
 
 ```bash
 python3 -m venv .venv
