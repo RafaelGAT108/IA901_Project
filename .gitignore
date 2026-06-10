@@ -3,16 +3,13 @@
 raw_data
 ICBHI_final_database
 
-.venv
-.idea
-raw_data
-ICBHI_final_database
-
-data_raw/
-data_preprocessed/
+raw*/
+interim*/
+preprocessed*/
 logs/
+results/
 checkpoints/
 *.ckpt
 
-pycache__/
+__pycache__/
 *.pyc
