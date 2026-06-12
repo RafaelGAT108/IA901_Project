@@ -10,7 +10,7 @@ from torch.utils.data.sampler import WeightedRandomSampler
 import torchvision.transforms as T
 from typing import Any
 
-from modules.datasets import KAUHFeaturesDataset, ICBHIFeaturesDataset, CombinedFeaturesDataset, LungSoundFeaturesDataset, DIAGNOSIS
+from modules.datasets import KAUHFeaturesDataset, ICBHIFeaturesDataset, CombinedFeaturesDataset, FeaturesDataset, DIAGNOSIS
 
 class LungSoundDataModule(L.LightningDataModule):
     """ PyTorch Lightning DataModule for lung sound datasets. """
@@ -49,7 +49,7 @@ class LungSoundDataModule(L.LightningDataModule):
             raise ValueError(f"Invalid dataset: {dataset_name}. Choose from: {tuple(self.AVAILABLE_DATASETS)}")
 
         self.data_path = data_path
-        self.dataset_class: type[LungSoundFeaturesDataset] = self.AVAILABLE_DATASETS[dataset_name]
+        self.dataset_class: type[FeaturesDataset] = self.AVAILABLE_DATASETS[dataset_name]
         self.classes = dataset_config.get("classes", DIAGNOSIS)
         self.feature_extractor = dataset_config.get("feature_extractor", "MagSTFT")
         self.num_channels = len(self.feature_extractor) if isinstance(self.feature_extractor, list) else 1

@@ -21,7 +21,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GroupShuffleSplit
 from modules.lungsound import LungSoundAudio, LungSoundFeatures
 from modules.transforms import *
 
@@ -66,7 +65,7 @@ DIAGNOSIS_MAP = {
 # ==================== Datasets of Audios ====================
 # ============================================================
 
-class LungSoundAudioDataset(Dataset):
+class AudioDataset(Dataset):
     """
     Base dataset for lung sound collections.
     """
@@ -219,7 +218,7 @@ class LungSoundAudioDataset(Dataset):
         sample.plot_waveform(title=f"Sample {idx} - Label: {label} ({label_name})")
 
 
-class ICBHIAudioDataset(LungSoundAudioDataset):
+class ICBHIAudioDataset(AudioDataset):
     """ Dataset for the ICBHI Challenge (2017) respiratory sound database."""
     def __init__(
             self,
@@ -295,7 +294,7 @@ class ICBHIAudioDataset(LungSoundAudioDataset):
         return self.data
 
 
-class KAUHAudioDataset(LungSoundAudioDataset):
+class KAUHAudioDataset(AudioDataset):
     """ Dataset for the KAUH (2021) respiratory sound database. """
     def __init__(
             self,
@@ -353,7 +352,7 @@ class KAUHAudioDataset(LungSoundAudioDataset):
         return self.data
 
 
-class CombinedAudioDataset(LungSoundAudioDataset):
+class CombinedAudioDataset(AudioDataset):
     """ Dataset that combines ICBHI and KAUH before splitting. """
     def __init__(
             self,
@@ -378,7 +377,7 @@ class CombinedAudioDataset(LungSoundAudioDataset):
 # =================== Datasets of Features =================== #
 # ============================================================ #
 
-class LungSoundFeaturesDataset(Dataset):
+class FeaturesDataset(Dataset):
     """
     Dataset for lung sound features extracted from audio files.
     """
@@ -415,7 +414,7 @@ class LungSoundFeaturesDataset(Dataset):
         self.load_data()
         self.handle_classes()
         if split != "all":
-            self.data = LungSoundAudioDataset.split_data(
+            self.data = AudioDataset.split_data(
                 self.data,
                 split,
                 train_size=0.8,
@@ -547,7 +546,7 @@ class LungSoundFeaturesDataset(Dataset):
             sample.plot_features(title=f"{file_name}", **plot_params)
 
 
-class ICBHIFeaturesDataset(LungSoundFeaturesDataset):
+class ICBHIFeaturesDataset(FeaturesDataset):
     """ Dataset for features extracted from the ICBHI Challenge (2017) respiratory sound database. """
     def __init__(
             self,
@@ -563,7 +562,7 @@ class ICBHIFeaturesDataset(LungSoundFeaturesDataset):
         super().__init__(root, split, feature_extractor, classes, transform, random_seed, sample_limit)
 
 
-class KAUHFeaturesDataset(LungSoundFeaturesDataset):
+class KAUHFeaturesDataset(FeaturesDataset):
     """ Dataset for features extracted from the KAUH (2021) respiratory sound database. """
     def __init__(
             self,
@@ -579,7 +578,7 @@ class KAUHFeaturesDataset(LungSoundFeaturesDataset):
         super().__init__(root, split, feature_extractor, classes, transform, random_seed, sample_limit)
 
 
-class CombinedFeaturesDataset(LungSoundFeaturesDataset):
+class CombinedFeaturesDataset(FeaturesDataset):
     """ Dataset that combines features from both ICBHI and KAUH before splitting. """
     def __init__(
             self,
