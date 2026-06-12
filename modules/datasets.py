@@ -114,7 +114,8 @@ class LungSoundAudioDataset(Dataset):
 
     def __getitem__(self, idx: int) -> tuple[LungSoundAudio, int]:
         row = self.data.iloc[idx]
-        sample = LungSoundAudio(row["FilePath"])
+        file_path = self.root / row["FilePath"]
+        sample = LungSoundAudio(file_path)
         label = row["Label"]
 
         if self.transform is not None:
@@ -197,7 +198,7 @@ class LungSoundAudioDataset(Dataset):
         """
         Recursively find all .wav files in the root directory.
         """
-        return sorted(self.root.rglob("*.wav"))
+        return sorted((self.root / self.name).rglob("*.wav"))
 
     def unit_test(self, idx=0):
         """
@@ -229,8 +230,7 @@ class ICBHIAudioDataset(LungSoundAudioDataset):
             random_seed: int = 42,
         ):
         self.name = "ICBHI"
-        data_dir = os.path.join(root, self.name)
-        super().__init__(data_dir, split, classes, transform, random_seed)
+        super().__init__(root, split, classes, transform, random_seed)
 
     @staticmethod
     def parse_metadata(file_path: str) -> dict:
@@ -249,7 +249,7 @@ class ICBHIAudioDataset(LungSoundAudioDataset):
     def load_data(self) -> pd.DataFrame:
         """ Load data from the ICBHI dataset. """
         # Diagnosis file
-        diagnosis_file = os.path.join(self.root, "ICBHI_Challenge_diagnosis.txt")
+        diagnosis_file = os.path.join(self.root, self.name, "ICBHI_Challenge_diagnosis.txt")
         diagnosis_df = pd.read_csv(
             diagnosis_file,
             names=["PatientNumber", "Diagnosis"],
@@ -259,7 +259,7 @@ class ICBHIAudioDataset(LungSoundAudioDataset):
         diagnosis_map = dict(zip(diagnosis_df["PatientNumber"], diagnosis_df["Diagnosis"]))
 
         # Metadata file
-        demographic_file = os.path.join(self.root, "ICBHI_Challenge_demographic_information.txt")
+        demographic_file = os.path.join(self.root, self.name, "ICBHI_Challenge_demographic_information.txt")
         demographic_df = pd.read_csv(
             demographic_file,
             names=["PatientNumber", "Age", "Sex", "AdultBMI (kg/m2)", "ChildWheight (kg)", "ChildHeight (cm)"],
@@ -285,7 +285,7 @@ class ICBHIAudioDataset(LungSoundAudioDataset):
             records.append(
                 {
                     "Source": self.name,
-                    "FilePath": str(wav_file),
+                    "FilePath": os.path.relpath(wav_file, self.root),
                     "Diagnosis": diagnosis_map.get(patient_number, "Unknown"),
                     **demographic_info,
                     **metadata,
@@ -306,8 +306,7 @@ class KAUHAudioDataset(LungSoundAudioDataset):
             random_seed: int = 42
         ):
         self.name = "KAUH"
-        data_dir = os.path.join(root, self.name)
-        super().__init__(data_dir, split, classes, transform, random_seed)
+        super().__init__(root, split, classes, transform, random_seed)
 
     @staticmethod
     def parse_metadata(file_path: str) -> dict:
@@ -346,7 +345,7 @@ class KAUHAudioDataset(LungSoundAudioDataset):
             records.append(
                 {
                     "Source": self.name,
-                    "FilePath": str(wav_file),
+                    "FilePath": os.path.relpath(wav_file, self.root),
                     **metadata,
                 }
             )
