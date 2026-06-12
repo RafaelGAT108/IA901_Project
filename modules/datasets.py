@@ -18,8 +18,10 @@ import re
 from pathlib import Path
 from typing import Any
 import pandas as pd
+import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit
 from modules.lungsound import LungSoundAudio, LungSoundFeatures
 from modules.transforms import *
 
@@ -75,6 +77,7 @@ class LungSoundAudioDataset(Dataset):
             classes: list[str] = DIAGNOSIS,
             transform: AudioTransform | Compose | None = None,
             random_seed: int = 42,
+            sample_limit: int | None = None
         ):
         """
         Initialize the dataset.
@@ -84,11 +87,13 @@ class LungSoundAudioDataset(Dataset):
             classes (list[str]): List of classes to include in the dataset. Only samples with these diagnoses will be included. Default is all classes in the DIAGNOSIS list.
             transform (AudioTransform | Compose | None): Optional transform pipeline to apply to each sample.
             random_seed (int): Random seed for reproducibility when splitting the dataset. Default is 42.
+            sample_limit (int | None): Maximum number of samples per class to include in the dataset. If None, include all samples. Default is None.
         """
         self.root = Path(root)
         self.split = split
         self.transform = transform
         self.random_seed = random_seed
+        self.sample_limit = sample_limit
         self.classes = [cls_name for cls_name in classes if cls_name in DIAGNOSIS]
         self.labels = {diag: idx for idx, diag in enumerate(self.classes)}
         self.data = None
@@ -131,6 +136,13 @@ class LungSoundAudioDataset(Dataset):
         self.data = self.data[self.data["Diagnosis"].isin(self.classes)]
         # Map diagnosis to label indices
         self.data["Label"] = self.data["Diagnosis"].map(self.labels)
+        # Apply sample limit if specified
+        if self.sample_limit is not None:
+            dfs = []
+            for i, group in self.data.groupby("Diagnosis"):
+                df_i = group.sample(n=min(len(group), self.sample_limit), random_state=self.random_seed)
+                dfs.append(df_i)
+            self.data = pd.concat(dfs, ignore_index=True)
         # Reset index after filtering
         self.data.reset_index(drop=True, inplace=True)
 
@@ -321,7 +333,7 @@ class KAUHAudioDataset(LungSoundAudioDataset):
             "FilterCode": filter_code,
             "PatientId": patient_num,
             "Sound type": sound_type,
-            "Location": location,
+            "ChestLocation": location,
             "Age": float(age),
             "Sex": sex,
         }
@@ -375,23 +387,29 @@ class LungSoundFeaturesDataset(Dataset):
             self,
             root: str | Path,
             split: str,
-            feature_extractor: str,
+            feature_extractor: str | list[str],
             classes: list[str] = DIAGNOSIS,
-            random_seed: int = 42
+            transform: FeatureTransform | Compose | None = None,
+            random_seed: int = 42,
+            sample_limit: int | None = None
         ):
         """
         Initialize the dataset.
         Args:
             root (str | Path): Root directory of the dataset.
             split (str): Dataset split. Can be "train", "val", "test", or "all".
-            feature_extractor (str): Name of the feature extractor used to generate the features. This should correspond to a subdirectory in the preprocessed data directory.
+            feature_extractor (str | list[str]): Name(s) of the feature extractor(s) used to generate the features. This should correspond to a subdirectory in the preprocessed data directory.
             classes (list[str]): List of classes to include in the dataset. Only samples with these diagnoses will be included. Default is all classes in the DIAGNOSIS list.
+            transform (FeatureTransform | Compose | None): Optional transform pipeline to apply to each sample's features.
             random_seed (int): Random seed for reproducibility when splitting the dataset. Default is 42.
+            sample_limit (int | None): Maximum number of samples per class to include in the dataset. If None, include all samples. Default is None.
         """
         self.root = Path(root)
         self.split = split
         self.feature_extractor = feature_extractor
+        self.transform = transform
         self.random_seed = random_seed
+        self.sample_limit = sample_limit
         self.classes = [cls_name for cls_name in classes if cls_name in DIAGNOSIS]
         self.labels = {diag: idx for idx, diag in enumerate(self.classes)}
         self.data = None
@@ -412,7 +430,8 @@ class LungSoundFeaturesDataset(Dataset):
 
     def __getitem__(self, idx: int) -> tuple[LungSoundFeatures, int]:
         row = self.data.iloc[idx]
-        file_path = row["FilePath"]
+        file_name = row["FileName"]
+        file_path = self.root / self.feature_extractor / row["Diagnosis"] / file_name
         label = row["Label"]
         sample = LungSoundFeatures(file_path)
         sample.info = row.to_dict()
@@ -432,15 +451,20 @@ class LungSoundFeaturesDataset(Dataset):
         extractor_name = next(iter(feature_extractor_info.keys()), None)
         if extractor_name is None:
             return {}
-        return feature_extractor_info[extractor_name].get("plot_params", {})
+        if extractor_name == "Stack":
+            # If it's a stack, we need to return the plot params for each feature in the stack
+            plot_params = {}
+            for stack_feature, feature_info in feature_extractor_info[extractor_name]["params"]["feature_extractors"].items():
+                plot_params[stack_feature] = feature_info.get("plot_params", {})
+        else:
+            plot_params = feature_extractor_info[extractor_name].get("plot_params", {})
+        return plot_params
 
     def load_data(self) -> pd.DataFrame:
         """
         Load the dataset from the CSV file and construct the file paths.
         """
         self.data = pd.read_csv(self.root / "data.csv")
-        data_dir = self.root / self.feature_extractor
-        self.data["FilePath"] = self.data.apply(lambda row: str(data_dir / row["Diagnosis"] / f"{row['FileName']}"), axis=1)
         self.preprocessing = self.get_preprocessing()
         return self.data
 
@@ -452,6 +476,13 @@ class LungSoundFeaturesDataset(Dataset):
         self.data = self.data[self.data["Diagnosis"].isin(self.classes)]
         # Map diagnosis to label indices
         self.data["Label"] = self.data["Diagnosis"].map(self.labels)
+        # Apply sample limit if specified
+        if self.sample_limit is not None:
+            dfs = []
+            for i, group in self.data.groupby("Diagnosis"):
+                df_i = group.sample(n=min(len(group), self.sample_limit), random_state=self.random_seed)
+                dfs.append(df_i)
+            self.data = pd.concat(dfs, ignore_index=True)
         # Reset index after filtering
         self.data.reset_index(drop=True, inplace=True)
 
@@ -466,13 +497,27 @@ class LungSoundFeaturesDataset(Dataset):
         print(f"  File name: {file_name}")
         print(f"  Label: {label} ({label_name})")
         print(f"  Sample rate: {sample.sr}")
+        print(f"  Feature extractor: {self.feature_extractor}")
         print(f"  Feature shape: {sample.features.shape}")
         print(f"  Feature dtype: {sample.features.dtype}")
         print(f"  Feature min value: {sample.features.min():.3f}")
         print(f"  Feature max value: {sample.features.max():.3f}")
         # Plot the features
         plot_params = self.get_plot_params()
-        sample.plot_features(title=file_name, **plot_params)
+        if "Stack" in self.feature_extractor:
+            # If it's a stack, we need to plot each feature in the stack separately
+            num_features = len(plot_params.keys())
+            fig, axes = plt.subplots(1, num_features, figsize=(5 * num_features, 4), constrained_layout=True)
+            axes = axes.flatten()
+            for i, (stack_feature, params) in enumerate(plot_params.items()):
+                sample_channel = LungSoundFeatures()
+                sample_channel.features = sample.features[:, :, i]
+                sample_channel.sr = sample.sr
+                sample_channel.plot_features(title=f"{stack_feature}", ax=axes[i], **params)
+            plt.suptitle(f"{file_name}")
+            plt.show()
+        else:
+            sample.plot_features(title=f"{file_name}", **plot_params)
 
 
 class ICBHIFeaturesDataset(LungSoundFeaturesDataset):
@@ -483,11 +528,13 @@ class ICBHIFeaturesDataset(LungSoundFeaturesDataset):
             split: str,
             feature_extractor: str,
             classes: list[str] = DIAGNOSIS,
-            random_seed: int = 42
+            transform: Any = None,
+            random_seed: int = 42.,
+            sample_limit: int | None = None,
         ):
         self.name = "ICBHI"
         data_dir = os.path.join(root, self.name)
-        super().__init__(data_dir, split, feature_extractor, classes, random_seed)
+        super().__init__(data_dir, split, feature_extractor, classes, transform, random_seed, sample_limit)
 
 
 class KAUHFeaturesDataset(LungSoundFeaturesDataset):
@@ -498,11 +545,13 @@ class KAUHFeaturesDataset(LungSoundFeaturesDataset):
             split: str,
             feature_extractor: str,
             classes: list[str] = DIAGNOSIS,
-            random_seed: int = 42
+            transform: Any = None,
+            random_seed: int = 42,
+            sample_limit: int | None = None,
         ):
         self.name = "KAUH"
         data_dir = os.path.join(root, self.name)
-        super().__init__(data_dir, split, feature_extractor, classes, random_seed)
+        super().__init__(data_dir, split, feature_extractor, classes, transform, random_seed, sample_limit)
 
 
 class CombinedFeaturesDataset(LungSoundFeaturesDataset):
@@ -513,10 +562,12 @@ class CombinedFeaturesDataset(LungSoundFeaturesDataset):
             split: str,
             feature_extractor: str,
             classes: list[str] = DIAGNOSIS,
-            random_seed: int = 42
+            transform: Any = None,
+            random_seed: int = 42,
+            sample_limit: int | None = None,
         ):
         self.name = "Combined_ICBHI_KAUH"
-        super().__init__(root, split, feature_extractor, classes, random_seed)
+        super().__init__(root, split, feature_extractor, classes, transform, random_seed, sample_limit)
 
     def load_data(self) -> pd.DataFrame:
         """ Load and combine data from both ICBHI and KAUH datasets. """

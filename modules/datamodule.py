@@ -26,6 +26,7 @@ class LungSoundDataModule(L.LightningDataModule):
                 - classes (list[str]): List of class names to include in the dataset. If not provided, defaults to all classes.
                 - num_channels (int): Number of channels of the features.
                 - feature_extractor (str): Name of the feature extractor used during preprocessing. This is used to determine how to load the features in the dataset class.
+                - sample_limit (int | None): Maximum number of samples per class to include in the dataset. If None, include all samples.
             }
             - batch_size (int): Batch size for the dataloaders.
             - num_workers (int): Number of worker processes for data loading.
@@ -53,6 +54,7 @@ class LungSoundDataModule(L.LightningDataModule):
         self.classes = dataset_config.get("classes", DIAGNOSIS)
         self.num_channels = dataset_config.get("num_channels", 1)
         self.feature_extractor = dataset_config.get("feature_extractor", "STFT")
+        self.sample_limit = dataset_config.get("sample_limit", None)
 
         # General configurations
         self.batch_size = config.get("batch_size", 16)
@@ -78,6 +80,7 @@ class LungSoundDataModule(L.LightningDataModule):
             feature_extractor=self.feature_extractor,
             classes=self.classes,
             random_seed=self.seed,
+            sample_limit=self.sample_limit,
         )
 
 
