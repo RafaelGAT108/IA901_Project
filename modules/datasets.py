@@ -431,40 +431,67 @@ class LungSoundFeaturesDataset(Dataset):
     def __getitem__(self, idx: int) -> tuple[LungSoundFeatures, int]:
         row = self.data.iloc[idx]
         file_name = row["FileName"]
-        file_path = self.root / self.feature_extractor / row["Diagnosis"] / file_name
+
+        if isinstance(self.feature_extractor, list):
+            # If it's a list, we need to stack the features from each extractor in the list
+            samples = []
+            sr = set()
+            for extractor in self.feature_extractor:
+                file_path = self.root / row["Source"] / extractor / row["Diagnosis"] / file_name
+                sample = LungSoundFeatures(file_path)
+                samples.append(sample.features)
+                sr.add(sample.sr)
+            # Check that all sample rates are the same
+            if len(sr) > 1:
+                raise ValueError(f"All feature extractors must have the same sample rate. Got {sr}.")
+            # Stack the features along the channel dimension
+            features = np.stack(samples, axis=-1)
+            sample = LungSoundFeatures()
+            sample.features = features
+            sample.sr = sr.pop()
+        else:
+            # If it's a single extractor, we can load the features directly
+            file_path = self.root / row["Source"] / self.feature_extractor / row["Diagnosis"] / file_name
+            sample = LungSoundFeatures(file_path)
+
         label = row["Label"]
-        sample = LungSoundFeatures(file_path)
         sample.info = row.to_dict()
         return sample, label
 
     def get_preprocessing(self) -> Any:
-        """ Load the transformations from the JSON file saved during preprocessing. """
-        data_dir = self.root / self.feature_extractor
-        json_path = data_dir / "preprocessing.json"
-        with open(json_path, "r") as f:
-            preprocessing = json.load(f)
-        return preprocessing
+        if isinstance(self.feature_extractor, list):
+            preprocessing = {}
+            for extractor in self.feature_extractor:
+                data_dir = self.root / self.name / extractor
+                json_path = data_dir / "preprocessing.json"
+                with open(json_path, "r") as f:
+                    extractor_preprocessing = json.load(f)
+                preprocessing[extractor] = extractor_preprocessing
+            return preprocessing
+        else:
+            data_dir = self.root / self.name / self.feature_extractor
+            json_path = data_dir / "preprocessing.json"
+            with open(json_path, "r") as f:
+                preprocessing = json.load(f)
+            return preprocessing
 
     def get_plot_params(self) -> dict:
         """ Get the parameters to use when plotting the features with librosa.display.specshow. """
-        feature_extractor_info = self.preprocessing.get("feature_extractor", {})
-        extractor_name = next(iter(feature_extractor_info.keys()), None)
-        if extractor_name is None:
-            return {}
-        if extractor_name == "Stack":
-            # If it's a stack, we need to return the plot params for each feature in the stack
+        if isinstance(self.feature_extractor, list):
             plot_params = {}
-            for stack_feature, feature_info in feature_extractor_info[extractor_name]["params"]["feature_extractors"].items():
-                plot_params[stack_feature] = feature_info.get("plot_params", {})
+            for extractor in self.preprocessing.keys():
+                extractor_info = self.preprocessing[extractor]["feature_extractor"][extractor]
+                plot_params[extractor] = extractor_info.get("plot_params", {})
         else:
-            plot_params = feature_extractor_info[extractor_name].get("plot_params", {})
+            extractor_info = self.preprocessing["feature_extractor"][self.feature_extractor]
+            plot_params = extractor_info.get("plot_params", {})
         return plot_params
 
     def load_data(self) -> pd.DataFrame:
         """
         Load the dataset from the CSV file and construct the file paths.
         """
-        self.data = pd.read_csv(self.root / "data.csv")
+        self.data = pd.read_csv(self.root / self.name / "data.csv")
         self.preprocessing = self.get_preprocessing()
         return self.data
 
@@ -504,7 +531,7 @@ class LungSoundFeaturesDataset(Dataset):
         print(f"  Feature max value: {sample.features.max():.3f}")
         # Plot the features
         plot_params = self.get_plot_params()
-        if "Stack" in self.feature_extractor:
+        if isinstance(self.feature_extractor, list):
             # If it's a stack, we need to plot each feature in the stack separately
             num_features = len(plot_params.keys())
             fig, axes = plt.subplots(1, num_features, figsize=(5 * num_features, 4), constrained_layout=True)
@@ -517,6 +544,7 @@ class LungSoundFeaturesDataset(Dataset):
             plt.suptitle(f"{file_name}")
             plt.show()
         else:
+            # If it's a single extractor, we can plot the features directly
             sample.plot_features(title=f"{file_name}", **plot_params)
 
 
@@ -526,15 +554,14 @@ class ICBHIFeaturesDataset(LungSoundFeaturesDataset):
             self,
             root: str | Path,
             split: str,
-            feature_extractor: str,
+            feature_extractor: str | list[str],
             classes: list[str] = DIAGNOSIS,
-            transform: Any = None,
+            transform: FeatureTransform | Compose | None = None,
             random_seed: int = 42.,
             sample_limit: int | None = None,
         ):
         self.name = "ICBHI"
-        data_dir = os.path.join(root, self.name)
-        super().__init__(data_dir, split, feature_extractor, classes, transform, random_seed, sample_limit)
+        super().__init__(root, split, feature_extractor, classes, transform, random_seed, sample_limit)
 
 
 class KAUHFeaturesDataset(LungSoundFeaturesDataset):
@@ -543,15 +570,14 @@ class KAUHFeaturesDataset(LungSoundFeaturesDataset):
             self,
             root: str | Path,
             split: str,
-            feature_extractor: str,
+            feature_extractor: str | list[str],
             classes: list[str] = DIAGNOSIS,
-            transform: Any = None,
+            transform: FeatureTransform | Compose | None = None,
             random_seed: int = 42,
             sample_limit: int | None = None,
         ):
         self.name = "KAUH"
-        data_dir = os.path.join(root, self.name)
-        super().__init__(data_dir, split, feature_extractor, classes, transform, random_seed, sample_limit)
+        super().__init__(root, split, feature_extractor, classes, transform, random_seed, sample_limit)
 
 
 class CombinedFeaturesDataset(LungSoundFeaturesDataset):
@@ -560,9 +586,9 @@ class CombinedFeaturesDataset(LungSoundFeaturesDataset):
             self,
             root: str | Path,
             split: str,
-            feature_extractor: str,
+            feature_extractor: str | list[str],
             classes: list[str] = DIAGNOSIS,
-            transform: Any = None,
+            transform: FeatureTransform | Compose | None = None,
             random_seed: int = 42,
             sample_limit: int | None = None,
         ):

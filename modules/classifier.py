@@ -26,7 +26,6 @@ class LungSoundClassifier(L.LightningModule):
             }
             - dataset: {
                 - classes (list[str]): List of class names in the dataset.
-                - num_channels (int): Number of channels in the input data.
             }
             - criterion (str): Loss function to use (e.g. "CrossEntropyLoss").
             - optimizer (str): Optimizer to use (e.g. "AdamW").
@@ -42,10 +41,16 @@ class LungSoundClassifier(L.LightningModule):
         self.save_hyperparameters(config)
 
         # Load model
+        if isinstance(self.hparams.dataset.get("feature_extractor"), list):
+            num_channels = len(self.hparams.dataset.get("feature_extractor"))
+        elif isinstance(self.hparams.dataset.get("feature_extractor"), str):
+            num_channels = 1
+        else:
+            raise ValueError("Invalid feature extractor type. Expected str or list of str.")
         self.classes = self.hparams.dataset["classes"]
         self.lung_sound_model = LungSoundModel(
             name=self.hparams.model["name"],
-            num_channels=self.hparams.dataset["num_channels"],
+            num_channels=num_channels,
             num_classes=len(self.classes),
             pretrained=self.hparams.model.get("pretrained", None),
             freeze_layers=self.hparams.model.get("freeze_layers", False)
