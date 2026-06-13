@@ -227,9 +227,10 @@ class ICBHIAudioDataset(AudioDataset):
             classes: list[str] = DIAGNOSIS,
             transform: AudioTransform | Compose | None = None,
             random_seed: int = 42,
+            sample_limit: int | None = None,
         ):
         self.name = "ICBHI"
-        super().__init__(root, split, classes, transform, random_seed)
+        super().__init__(root, split, classes, transform, random_seed, sample_limit)
 
     @staticmethod
     def parse_metadata(file_path: str) -> dict:
@@ -247,6 +248,12 @@ class ICBHIAudioDataset(AudioDataset):
 
     def load_data(self) -> pd.DataFrame:
         """ Load data from the ICBHI dataset. """
+        # Check if already exists a metadata.csv file with all the metadata
+        metadata_file = os.path.join(self.root, self.name, "metadata.csv")
+        if os.path.exists(metadata_file):
+            self.data = pd.read_csv(metadata_file)
+            return self.data
+
         # Diagnosis file
         diagnosis_file = os.path.join(self.root, self.name, "ICBHI_Challenge_diagnosis.txt")
         diagnosis_df = pd.read_csv(
@@ -302,10 +309,11 @@ class KAUHAudioDataset(AudioDataset):
             split: str = "all",
             classes: list[str] = DIAGNOSIS,
             transform: AudioTransform | Compose | None = None,
-            random_seed: int = 42
+            random_seed: int = 42,
+            sample_limit: int | None = None,
         ):
         self.name = "KAUH"
-        super().__init__(root, split, classes, transform, random_seed)
+        super().__init__(root, split, classes, transform, random_seed, sample_limit)
 
     @staticmethod
     def parse_metadata(file_path: str) -> dict:
@@ -338,6 +346,12 @@ class KAUHAudioDataset(AudioDataset):
 
     def load_data(self) -> pd.DataFrame:
         """ Load data from the KAUH dataset. """
+        # Check if already exists a metadata.csv file with all the metadata
+        metadata_file = os.path.join(self.root, self.name, "metadata.csv")
+        if os.path.exists(metadata_file):
+            self.data = pd.read_csv(metadata_file)
+            return self.data
+
         records = []
         for wav_file in self.find_wav_files():
             metadata = self.parse_metadata(wav_file)
@@ -360,10 +374,11 @@ class CombinedAudioDataset(AudioDataset):
             split: str,
             classes: list[str],
             transform: AudioTransform | Compose | None = None,
-            random_seed: int = 42
+            random_seed: int = 42,
+            sample_limit: int | None = None,
         ):
         self.name = "Combined_ICBHI_KAUH"
-        super().__init__(root, split, classes, transform, random_seed)
+        super().__init__(root, split, classes, transform, random_seed, sample_limit)
 
     def load_data(self) -> pd.DataFrame:
         """ Load and combine data from both ICBHI and KAUH datasets. """
@@ -429,6 +444,7 @@ class FeaturesDataset(Dataset):
     def __getitem__(self, idx: int) -> tuple[LungSoundFeatures, int]:
         row = self.data.iloc[idx]
         file_name = row["FileName"]
+        label = row["Label"]
 
         if isinstance(self.feature_extractor, list):
             # If it's a list, we need to stack the features from each extractor in the list
@@ -452,7 +468,9 @@ class FeaturesDataset(Dataset):
             file_path = self.root / row["Source"] / self.feature_extractor / row["Diagnosis"] / file_name
             sample = LungSoundFeatures(file_path)
 
-        label = row["Label"]
+        if self.transform is not None:
+            sample = self.transform(sample)
+
         sample.info = row.to_dict()
         return sample, label
 
@@ -461,14 +479,14 @@ class FeaturesDataset(Dataset):
             preprocessing = {}
             for extractor in self.feature_extractor:
                 data_dir = self.root / self.name / extractor
-                json_path = data_dir / "preprocessing.json"
+                json_path = data_dir / "features_preprocessing.json"
                 with open(json_path, "r") as f:
                     extractor_preprocessing = json.load(f)
                 preprocessing[extractor] = extractor_preprocessing
             return preprocessing
         else:
             data_dir = self.root / self.name / self.feature_extractor
-            json_path = data_dir / "preprocessing.json"
+            json_path = data_dir / "features_preprocessing.json"
             with open(json_path, "r") as f:
                 preprocessing = json.load(f)
             return preprocessing
@@ -489,7 +507,7 @@ class FeaturesDataset(Dataset):
         """
         Load the dataset from the CSV file and construct the file paths.
         """
-        self.data = pd.read_csv(self.root / self.name / "data.csv")
+        self.data = pd.read_csv(self.root / self.name / "metadata.csv")
         self.preprocessing = self.get_preprocessing()
         return self.data
 
