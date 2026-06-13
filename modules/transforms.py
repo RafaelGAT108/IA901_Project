@@ -70,22 +70,32 @@ class FeatureExtractor(ABC):
         """ Parameters to use when plotting the features with librosa.display.specshow. """
         return {}
 
+class FeatureTransform(ABC):
+    """ Base class for 2D -> 2D feature transforms. """
+    @abstractmethod
+    def __call__(self, lung_sound_features: LungSoundFeatures) -> LungSoundFeatures:
+        ...
 
-class Compose(AudioTransform):
+    def __repr__(self):
+        params = ",".join(
+            f"{k}={v!r}"
+            for k, v in vars(self).items()
+        )
+        return f"{self.__class__.__name__}({params})"
+
+    @property
+    def name(self):
+        return self.__class__.__name__
+
+
+class Compose(AudioTransform, FeatureExtractor):
     """
     Compose multiple transforms sequentially.
-    Example:
-    >>> Compose([
-    ...     Resample(16000),
-    ...     PadOrTrim(5),
-    ...     Normalize(),
-    ...     MelSpectrogram(),
-    ... ])
     """
     def __init__(self, transforms: list[AudioTransform | FeatureExtractor]):
         self.transforms = transforms
 
-    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundAudio:
+    def __call__(self, lung_sound):
         for transform in self.transforms:
             lung_sound = transform(lung_sound)
         return lung_sound
@@ -196,12 +206,11 @@ class Window(AudioTransform):
 
 # ============================================================
 # Feature extractors
-# 1D -> 2D (audio -> features)
+# 1D -> N-D (audio -> features)
 # ============================================================
 
-
 class STFT(FeatureExtractor):
-    """ Standard magnitude spectrogram in dB scale. """
+    """ Standard STFT spectrogram (complex-valued). """
     def __init__(self, n_fft: int = 2048, hop_length: int = 512):
         """
         Args:
@@ -211,6 +220,21 @@ class STFT(FeatureExtractor):
         self.n_fft = n_fft
         self.hop_length = hop_length
 
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
+        stft = librosa.stft(
+            lung_sound.audio,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length
+        )
+        features = stft
+        lung_sound_features = LungSoundFeatures()
+        lung_sound_features.features = features
+        lung_sound_features.sr = lung_sound.sr
+        return lung_sound_features
+
+
+class MagSTFT(STFT):
+    """ Standard magnitude spectrogram in dB scale. """
     @property
     def plot_params(self):
         return {
@@ -221,13 +245,48 @@ class STFT(FeatureExtractor):
         }
 
     def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
-        stft = librosa.stft(
-            lung_sound.audio,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length
-        )
+        stft = super().__call__(lung_sound).features
         mag = np.abs(stft)
         features = librosa.amplitude_to_db(mag, ref=np.max)
+        lung_sound_features = LungSoundFeatures()
+        lung_sound_features.features = features
+        lung_sound_features.sr = lung_sound.sr
+        return lung_sound_features
+
+
+class ImagSTFT(STFT):
+    """ Imaginary part of the STFT spectrogram. """
+    @property
+    def plot_params(self):
+        return {
+            "n_fft": self.n_fft,
+            "hop_length": self.hop_length,
+            "y_axis": "log",
+            "x_axis": "time",
+        }
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
+        stft = super().__call__(lung_sound).features
+        features = stft.imag
+        lung_sound_features = LungSoundFeatures()
+        lung_sound_features.features = features
+        lung_sound_features.sr = lung_sound.sr
+        return lung_sound_features
+
+
+class RealSTFT(STFT):
+    """ Real part of the STFT spectrogram. """
+    @property
+    def plot_params(self):
+        return {
+            "n_fft": self.n_fft,
+            "hop_length": self.hop_length,
+            "y_axis": "log",
+            "x_axis": "time",
+        }
+
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
+        stft = super().__call__(lung_sound).features
+        features = stft.real
         lung_sound_features = LungSoundFeatures()
         lung_sound_features.features = features
         lung_sound_features.sr = lung_sound.sr
@@ -476,7 +535,7 @@ class Phase(FeatureExtractor):
         return {
             "n_fft": self.n_fft,
             "hop_length": self.hop_length,
-            "y_axis": None,
+            "y_axis": "log",
             "x_axis": "time",
         }
 
@@ -493,9 +552,27 @@ class Phase(FeatureExtractor):
         return lung_sound_features
 
 
-# ============================================================
-# Utility classes for features
-# ============================================================
+class SinPhase(Phase):
+    """ Sine of the phase spectrogram to capture periodicity. """
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
+        phase_features = super().__call__(lung_sound).features
+        features = np.sin(phase_features)
+        lung_sound_features = LungSoundFeatures()
+        lung_sound_features.features = features
+        lung_sound_features.sr = lung_sound.sr
+        return lung_sound_features
+
+
+class CosPhase(Phase):
+    """ Cosine of the phase spectrogram to capture periodicity. """
+    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
+        phase_features = super().__call__(lung_sound).features
+        features = np.cos(phase_features)
+        lung_sound_features = LungSoundFeatures()
+        lung_sound_features.features = features
+        lung_sound_features.sr = lung_sound.sr
+        return lung_sound_features
+
 
 class Stack(FeatureExtractor):
     """
@@ -531,7 +608,13 @@ class Stack(FeatureExtractor):
         return lung_sound_features
 
 
-class NormalizeFeatures(FeatureExtractor):
+# ============================================================
+# Feature transforms
+# 2D -> 2D (features -> features)
+# ============================================================
+
+
+class NormalizeFeatures(FeatureTransform):
     """ Normalize features to mantain the values between 0 and 1. """
     def __call__(self, lung_sound_features: LungSoundFeatures) -> LungSoundFeatures:
         features = lung_sound_features.features
@@ -539,4 +622,15 @@ class NormalizeFeatures(FeatureExtractor):
         max_val = np.max(features)
         normalized = (features - min_val) / (max_val - min_val + 1e-8)
         lung_sound_features.features = normalized
+        return lung_sound_features
+
+
+class StandardizeFeatures(FeatureTransform):
+    """ Standardize features to have zero mean and unit variance. """
+    def __call__(self, lung_sound_features: LungSoundFeatures) -> LungSoundFeatures:
+        features = lung_sound_features.features
+        mean = np.mean(features)
+        std = np.std(features)
+        standardized = (features - mean) / (std + 1e-8)
+        lung_sound_features.features = standardized
         return lung_sound_features

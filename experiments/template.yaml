@@ -49,5 +49,5 @@ dataset:
     - Pleural Effusion
     - Pneumonia
     - URTI
-  num_channels: ${num_channels}           # Number of channels of the input data
-  feature_extractor: ${feature_extractor} # Type of feature extractor used to generate features (e.g., "STFT", "MelSpectrogram", "MFCC", "Chroma")
+  feature_extractor: ${feature_extractor} # str or list of feature extractors to use (e.g., "MelSpectrogram", "MFCC", "Chroma", or a list of these)
+  sample_limit: ${sample_limit}           # The maximum number of samples per class, applied to the full dataset before splitting into train/val/test. Set to null for no limit.

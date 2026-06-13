@@ -10,7 +10,7 @@ from torch.utils.data.sampler import WeightedRandomSampler
 import torchvision.transforms as T
 from typing import Any
 
-from modules.datasets import KAUHFeaturesDataset, ICBHIFeaturesDataset, CombinedFeaturesDataset, LungSoundFeaturesDataset, DIAGNOSIS
+from modules.datasets import KAUHFeaturesDataset, ICBHIFeaturesDataset, CombinedFeaturesDataset, FeaturesDataset, DIAGNOSIS
 
 class LungSoundDataModule(L.LightningDataModule):
     """ PyTorch Lightning DataModule for lung sound datasets. """
@@ -24,8 +24,8 @@ class LungSoundDataModule(L.LightningDataModule):
             - dataset: {
                 - name (str): Name of the dataset to use (e.g. "ICBHI", "KAUH" or "Combined_ICBHI_KAUH").
                 - classes (list[str]): List of class names to include in the dataset. If not provided, defaults to all classes.
-                - num_channels (int): Number of channels of the features.
-                - feature_extractor (str): Name of the feature extractor used during preprocessing. This is used to determine how to load the features in the dataset class.
+                - feature_extractor (str | list[str]): Name or list of names of the feature extractors used during preprocessing. This is used to determine how to load the features in the dataset class.
+                - sample_limit (int | None): Maximum number of samples per class to include in the dataset. If None, include all samples.
             }
             - batch_size (int): Batch size for the dataloaders.
             - num_workers (int): Number of worker processes for data loading.
@@ -49,10 +49,11 @@ class LungSoundDataModule(L.LightningDataModule):
             raise ValueError(f"Invalid dataset: {dataset_name}. Choose from: {tuple(self.AVAILABLE_DATASETS)}")
 
         self.data_path = data_path
-        self.dataset_class: type[LungSoundFeaturesDataset] = self.AVAILABLE_DATASETS[dataset_name]
+        self.dataset_class: type[FeaturesDataset] = self.AVAILABLE_DATASETS[dataset_name]
         self.classes = dataset_config.get("classes", DIAGNOSIS)
-        self.num_channels = dataset_config.get("num_channels", 1)
-        self.feature_extractor = dataset_config.get("feature_extractor", "STFT")
+        self.feature_extractor = dataset_config.get("feature_extractor", "MagSTFT")
+        self.num_channels = len(self.feature_extractor) if isinstance(self.feature_extractor, list) else 1
+        self.sample_limit = dataset_config.get("sample_limit", None)
 
         # General configurations
         self.batch_size = config.get("batch_size", 16)
@@ -78,6 +79,7 @@ class LungSoundDataModule(L.LightningDataModule):
             feature_extractor=self.feature_extractor,
             classes=self.classes,
             random_seed=self.seed,
+            sample_limit=self.sample_limit,
         )
 
 
@@ -151,8 +153,8 @@ class LungSoundDataModule(L.LightningDataModule):
             if tensor.ndim == 2:
                 # Add channel dimension for 2D features (e.g. spectrograms)
                 return tensor.unsqueeze(0)
-            elif tensor.ndim == 3 and tensor.shape[-1] in (1, 3):
-                # Permute dimensions for 3D features with channel last (e.g. RGB images)
+            elif tensor.ndim == 3:
+                # Permute dimensions to (channels, height, width) for 3D features (e.g. stacked features)
                 return tensor.permute(2, 0, 1)
             else:
                 raise ValueError(f"Unsupported feature shape: {tensor.shape}.")
