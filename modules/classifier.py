@@ -5,7 +5,7 @@ Lung Sound Classification Module using PyTorch Lightning.
 import torch
 import lightning as L
 from torch import nn, optim
-from torchmetrics.classification import F1Score, Accuracy
+from torchmetrics.classification import F1Score
 from sklearn.metrics import classification_report
 
 from modules.model import LungSoundModel
@@ -64,13 +64,13 @@ class LungSoundClassifier(L.LightningModule):
         # Configure metrics
         self.train_f1_macro = F1Score(task="multiclass", num_classes=len(self.classes), average="macro")
         self.train_f1_micro = F1Score(task="multiclass", num_classes=len(self.classes), average="micro")
-        self.train_acc = Accuracy(task="multiclass", num_classes=len(self.classes))
+        self.train_f1_weighted = F1Score(task="multiclass", num_classes=len(self.classes), average="weighted")
         self.val_f1_macro = F1Score(task="multiclass", num_classes=len(self.classes), average="macro")
         self.val_f1_micro = F1Score(task="multiclass", num_classes=len(self.classes), average="micro")
-        self.val_acc = Accuracy(task="multiclass", num_classes=len(self.classes))
+        self.val_f1_weighted = F1Score(task="multiclass", num_classes=len(self.classes), average="weighted")
         self.test_f1_macro = F1Score(task="multiclass", num_classes=len(self.classes), average="macro")
         self.test_f1_micro = F1Score(task="multiclass", num_classes=len(self.classes), average="micro")
-        self.test_acc = Accuracy(task="multiclass", num_classes=len(self.classes))
+        self.test_f1_weighted = F1Score(task="multiclass", num_classes=len(self.classes), average="weighted")
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -125,10 +125,10 @@ class LungSoundClassifier(L.LightningModule):
         # Log metrics
         self.train_f1_macro(outputs, labels)
         self.train_f1_micro(outputs, labels)
-        self.train_acc(outputs, labels)
+        self.train_f1_weighted(outputs, labels)
         self.log("train_f1_macro", self.train_f1_macro, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train_f1_micro", self.train_f1_micro, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train_acc", self.train_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_f1_weighted", self.train_f1_weighted, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
@@ -148,10 +148,10 @@ class LungSoundClassifier(L.LightningModule):
         # Log metrics
         self.val_f1_macro(outputs, labels)
         self.val_f1_micro(outputs, labels)
-        self.val_acc(outputs, labels)
+        self.val_f1_weighted(outputs, labels)
         self.log("val_f1_macro", self.val_f1_macro, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val_f1_micro", self.val_f1_micro, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val_acc", self.val_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val_f1_weighted", self.val_f1_weighted, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
 
         # Store results
@@ -199,10 +199,10 @@ class LungSoundClassifier(L.LightningModule):
         # Log metrics
         self.test_f1_macro(outputs, labels)
         self.test_f1_micro(outputs, labels)
-        self.test_acc(outputs, labels)
+        self.test_f1_weighted(outputs, labels)
         self.log("test_f1_macro", self.test_f1_macro, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test_f1_micro", self.test_f1_micro, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("test_acc", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test_f1_weighted", self.test_f1_weighted, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
 
         # Store results
@@ -233,7 +233,5 @@ class LungSoundClassifier(L.LightningModule):
         # Log classification report
         metrics = {}
         for class_name in self.classes:
-            metrics[f"test_{class_name}_precision"] = report[class_name]["precision"]
-            metrics[f"test_{class_name}_recall"] = report[class_name]["recall"]
             metrics[f"test_{class_name}_f1"] = report[class_name]["f1-score"]
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False)
