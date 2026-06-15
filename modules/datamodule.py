@@ -7,7 +7,6 @@ import torch
 import lightning as L
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
-import torchvision.transforms as T
 from typing import Any
 
 from modules.datasets import KAUHFeaturesDataset, ICBHIFeaturesDataset, CombinedFeaturesDataset, FeaturesDataset, DIAGNOSIS
@@ -26,6 +25,7 @@ class LungSoundDataModule(L.LightningDataModule):
                 - classes (list[str]): List of class names to include in the dataset. If not provided, defaults to all classes.
                 - feature_extractor (str | list[str]): Name or list of names of the feature extractors used during preprocessing. This is used to determine how to load the features in the dataset class.
                 - sample_limit (int | None): Maximum number of samples per class to include in the dataset. If None, include all samples.
+                - transforms (FeatureTransform | Compose | None): Optional feature transformations to apply to the features when loading the dataset.
             }
             - batch_size (int): Batch size for the dataloaders.
             - num_workers (int): Number of worker processes for data loading.
@@ -51,6 +51,7 @@ class LungSoundDataModule(L.LightningDataModule):
         self.data_path = data_path
         self.dataset_class: type[FeaturesDataset] = self.AVAILABLE_DATASETS[dataset_name]
         self.classes = dataset_config.get("classes", DIAGNOSIS)
+        self.transforms = dataset_config.get("transforms", None)
         self.feature_extractor = dataset_config.get("feature_extractor", "MagSTFT")
         self.num_channels = len(self.feature_extractor) if isinstance(self.feature_extractor, list) else 1
         self.sample_limit = dataset_config.get("sample_limit", None)
@@ -75,9 +76,10 @@ class LungSoundDataModule(L.LightningDataModule):
     def create_dataset(self, split: str) -> Dataset:
         return self.dataset_class(
             root=self.data_path,
-            split=split,
             feature_extractor=self.feature_extractor,
+            split=split,
             classes=self.classes,
+            transform=self.transforms,
             random_seed=self.seed,
             sample_limit=self.sample_limit,
         )

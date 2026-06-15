@@ -21,7 +21,8 @@ This repository uses public respiratory sound datasets and stores derived featur
 
 See [data/datasheet.pdf](data/datasheet.pdf) for more details.
 
-> Note: It is recommended to have at least **15 GB** of free disk space to store the raw, interim, and preprocessed data.
+> **Note on disk space:**
+> It is recommended to have at least **30 GB** of free disk space to store the raw, interim, and preprocessed data. Additionally, remember to allocate extra space for the model weights.
 
 ## Python environment
 
@@ -50,6 +51,10 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+> **Note on GPU/CUDA compatibility:**
+> If you intend to train models on a GPU and the PyTorch version is incompatible with your system's CUDA version, you will need to update or reinstall PyTorch.
+> Refer to the [Official PyTorch Start Guide](https://pytorch.org/get-started/locally/) to find the exact installation command for your specific system.
 
 ## Repository Structure
 
@@ -104,19 +109,18 @@ pip install -r requirements.txt
 
 ## Modules
 
-- [`lungsound.py`](modules/lungsound.py): load audio files (1D), load features (2D), and plot waveforms/features.
-- [`transforms.py`](modules/transforms.py): audio transforms (resample, pad/trim, etc.) and feature extractors (STFT, MFCC, etc.).
-- [`datasets.py`](modules/datasets.py): dataset classes, label mapping, and train/val/test splits.
-- [`datamodule.py`](modules/datamodule.py): pytorch lightning data module with dataloaders, samplers, and collate logic.
+- [`lungsound.py`](modules/lungsound.py): load audio files (1D), load features (2D or N-D), and plot waveforms/features.
+- [`transforms.py`](modules/transforms.py): audio transforms (resample, pad/trim, etc), feature extractors (STFT, MFCC, etc), and feature transforms (MinMaxNormalization, etc).
+- [`datasets.py`](modules/datasets.py): dataset classes, data loading, and train/val/test splits.
+- [`datamodule.py`](modules/datamodule.py): pytorch lightning DataModule.
 - [`model.py`](modules/model.py): loads a model from torchvision and adapts input/output layers.
 - [`classifier.py`](modules/classifier.py): pytorch lightning module for training, validation, and test steps.
 
 ## Notebooks
 
-- [`1_data_loading.ipynb`](notebooks/1_data_loading.ipynb): download data and check the raw files.
+- [`1_data_loading.ipynb`](notebooks/1_data_loading.ipynb): download raw files to data/raw.
 - [`2_audio_analysis.ipynb`](notebooks/2_audio_analysis.ipynb): look at class balance, demographics, and audio durations.
 - [`3_transforms_analysis.ipynb`](notebooks/3_transforms_analysis.ipynb): perform audio transforms and compare feature extractors.
-- [`4_preprocess.ipynb`](notebooks/4_preprocess.ipynb): run the preprocessing pipeline and save features.
-- [`5_features_analysis.ipynb`](notebooks/5_features_analysis.ipynb): inspect extracted features and sample outputs.
-- [`6_datamodule_analysis.ipynb`](notebooks/6_datamodule_analysis.ipynb): test dataloaders and batches.
-- [`7_training.ipynb`](notebooks/7_training.ipynb): run training and evaluate results.
+- [`4_preprocess_audio.ipynb`](notebooks/4_preprocess_audio.ipynb): run the audio preprocessing pipeline and save .wav files to data/interim.
+- [`5_preprocess_features.ipynb`](notebooks/5_preprocess_features.ipynb): run the features preprocessing pipeline and save .npz files to data/preprocessed.
+- [`6_training.ipynb`](notebooks/7_training.ipynb): run training and evaluate results.
