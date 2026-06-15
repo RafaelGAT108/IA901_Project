@@ -25,6 +25,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from modules.lungsound import LungSoundAudio, LungSoundFeatures
 
+
 # ============================================================
 # Base classes
 # ============================================================
@@ -88,11 +89,9 @@ class FeatureTransform(ABC):
         return self.__class__.__name__
 
 
-class Compose(AudioTransform, FeatureExtractor):
-    """
-    Compose multiple transforms sequentially.
-    """
-    def __init__(self, transforms: list[AudioTransform | FeatureExtractor]):
+class Compose(AudioTransform, FeatureExtractor, FeatureTransform):
+    """ Compose multiple transforms sequentially. """
+    def __init__(self, transforms: list[AudioTransform | FeatureExtractor | FeatureTransform]):
         self.transforms = transforms
 
     def __call__(self, lung_sound):
@@ -209,6 +208,7 @@ class Window(AudioTransform):
 # 1D -> N-D (audio -> features)
 # ============================================================
 
+
 class STFT(FeatureExtractor):
     """ Standard STFT spectrogram (complex-valued). """
     def __init__(self, n_fft: int = 2048, hop_length: int = 512):
@@ -227,10 +227,7 @@ class STFT(FeatureExtractor):
             hop_length=self.hop_length
         )
         features = stft
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class MagSTFT(STFT):
@@ -248,10 +245,7 @@ class MagSTFT(STFT):
         stft = super().__call__(lung_sound).features
         mag = np.abs(stft)
         features = librosa.amplitude_to_db(mag, ref=np.max)
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class ImagSTFT(STFT):
@@ -267,10 +261,7 @@ class ImagSTFT(STFT):
     def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
         stft = super().__call__(lung_sound).features
         features = stft.imag
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class RealSTFT(STFT):
@@ -287,10 +278,7 @@ class RealSTFT(STFT):
     def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
         stft = super().__call__(lung_sound).features
         features = stft.real
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class MelSpectrogram(FeatureExtractor):
@@ -323,10 +311,7 @@ class MelSpectrogram(FeatureExtractor):
             hop_length=self.hop_length,
         )
         features = librosa.power_to_db(mel_spec, ref=np.max)
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class MFCC(FeatureExtractor):
@@ -358,46 +343,15 @@ class MFCC(FeatureExtractor):
             hop_length=self.hop_length,
             n_mfcc=self.n_mfcc
         )
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
-class MFCCDelta(FeatureExtractor):
+class MFCCDelta(MFCC):
     """ Temporal derivative of MFCC coefficients. """
-    def __init__(self, n_fft: int = 2048, hop_length: int = 512, n_mfcc: int = 20):
-        """
-        Args:
-            n_fft: Length of the FFT window in samples.
-            hop_length: Number of samples between successive frames.
-            n_mfcc: Number of MFCC coefficients to compute before taking the delta.
-        """
-        self.n_fft = n_fft
-        self.hop_length = hop_length
-        self.n_mfcc = n_mfcc
-
-    @property
-    def plot_params(self):
-        return {
-            "hop_length": self.hop_length,
-            "y_axis": None,
-            "x_axis": "time",
-        }
-
     def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
-        mfcc = librosa.feature.mfcc(
-            y=lung_sound.audio,
-            sr=lung_sound.sr,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            n_mfcc=self.n_mfcc
-        )
-        features = librosa.feature.delta(mfcc)
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        mfcc_features = super().__call__(lung_sound).features
+        features = librosa.feature.delta(mfcc_features)
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class Chroma(FeatureExtractor):
@@ -432,10 +386,7 @@ class Chroma(FeatureExtractor):
             hop_length=self.hop_length,
             n_chroma=self.n_chroma
         )
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class SpectralContrast(FeatureExtractor):
@@ -475,10 +426,7 @@ class SpectralContrast(FeatureExtractor):
             n_bands=self.n_bands,
             fmin=self.fmin
         )
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class CQT(FeatureExtractor):
@@ -513,10 +461,7 @@ class CQT(FeatureExtractor):
         )
         mag = np.abs(cqt)
         features = librosa.amplitude_to_db(mag, ref=np.max)
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class Phase(FeatureExtractor):
@@ -546,10 +491,7 @@ class Phase(FeatureExtractor):
             hop_length=self.hop_length
         )
         features = np.angle(stft)
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class SinPhase(Phase):
@@ -557,10 +499,7 @@ class SinPhase(Phase):
     def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
         phase_features = super().__call__(lung_sound).features
         features = np.sin(phase_features)
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 class CosPhase(Phase):
@@ -568,69 +507,69 @@ class CosPhase(Phase):
     def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
         phase_features = super().__call__(lung_sound).features
         features = np.cos(phase_features)
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = features
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
-
-
-class Stack(FeatureExtractor):
-    """
-    Stack multiple feature arrays along a new channel dimension (channels-last).
-    Example: If you have MFCC, Mel spectrogram, and Chroma features, this will combine
-    them into a single 3D array with shape (freq_bins, time_frames, channels).
-    """
-    def __init__(self, feature_extractors: list[FeatureExtractor]):
-        self.feature_extractors = {
-            fe.name: {
-                "params": vars(fe),
-                "plot_params": fe.plot_params
-            }
-            for fe in feature_extractors
-        }
-
-    @property
-    def name(self):
-        return "Stack_" + "_".join(self.feature_extractors.keys())
-
-    def __call__(self, lung_sound: LungSoundAudio) -> LungSoundFeatures:
-        features_array = []
-        for name, params in self.feature_extractors.items():
-            extractor_class = globals()[name]
-            init_params = params["params"]
-            extractor = extractor_class(**init_params)
-            extracted_feature = extractor(lung_sound)
-            features_array.append(extracted_feature.features)
-        stacked = np.stack(features_array, axis=-1)
-        lung_sound_features = LungSoundFeatures()
-        lung_sound_features.features = stacked
-        lung_sound_features.sr = lung_sound.sr
-        return lung_sound_features
+        return LungSoundFeatures(features=features, sr=lung_sound.sr)
 
 
 # ============================================================
 # Feature transforms
-# 2D -> 2D (features -> features)
+# N-D -> N-D (features -> features)
 # ============================================================
 
 
-class NormalizeFeatures(FeatureTransform):
+class MinMaxNormalization(FeatureTransform):
     """ Normalize features to mantain the values between 0 and 1. """
+    def __init__(self, mode: str = "channel_wise"):
+        """
+        Args:
+            mode (str): "global" to compute min/max across all values, "channel_wise" to compute separately for each channel.
+        """
+        assert mode in ["global", "channel_wise"], "mode must be 'global' or 'channel_wise'"
+        self.mode = mode
+
     def __call__(self, lung_sound_features: LungSoundFeatures) -> LungSoundFeatures:
         features = lung_sound_features.features
-        min_val = np.min(features)
-        max_val = np.max(features)
+        if self.mode == "global":
+            min_val = np.min(features)
+            max_val = np.max(features)
+        else:
+            min_val = np.min(features, axis=(0, 1), keepdims=True)
+            max_val = np.max(features, axis=(0, 1), keepdims=True)
         normalized = (features - min_val) / (max_val - min_val + 1e-8)
         lung_sound_features.features = normalized
         return lung_sound_features
 
 
-class StandardizeFeatures(FeatureTransform):
+class ZScoreNormalization(FeatureTransform):
     """ Standardize features to have zero mean and unit variance. """
+    def __init__(self, mode: str = "channel_wise"):
+        """
+        Args:
+            mode (str): "global" to compute mean/std across all values, "channel_wise" to compute separately for each channel.
+        """
+        assert mode in ["global", "channel_wise"], "mode must be 'global' or 'channel_wise'"
+        self.mode = mode
+
     def __call__(self, lung_sound_features: LungSoundFeatures) -> LungSoundFeatures:
         features = lung_sound_features.features
-        mean = np.mean(features)
-        std = np.std(features)
+        if self.mode == "global":
+            mean = np.mean(features)
+            std = np.std(features)
+        else:
+            mean = np.mean(features, axis=(0, 1), keepdims=True)
+            std = np.std(features, axis=(0, 1), keepdims=True)
         standardized = (features - mean) / (std + 1e-8)
         lung_sound_features.features = standardized
+        return lung_sound_features
+
+
+class ImageNetNormalization(FeatureTransform):
+    """ Normalize features using ImageNet mean and std for 3-channel inputs. """
+    def __call__(self, lung_sound_features: LungSoundFeatures) -> LungSoundFeatures:
+        features = lung_sound_features.features
+        assert features.ndim == 3 and features.shape[2] == 3, "ImageNetNormalization expects 3-channel features"
+        assert np.all((features >= 0) & (features <= 1)), "ImageNetNormalization expects features in [0, 1] range"
+        mean = np.array([0.485, 0.456, 0.406])[np.newaxis, np.newaxis, :]
+        std = np.array([0.229, 0.224, 0.225])[np.newaxis, np.newaxis, :]
+        normalized = (features - mean) / std
+        lung_sound_features.features = normalized
         return lung_sound_features
