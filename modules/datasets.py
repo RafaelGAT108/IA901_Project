@@ -15,12 +15,11 @@ extractors defined in the transforms module.
 import json
 import os
 import re
-from pathlib import Path
-from typing import Any
 import pandas as pd
 import matplotlib.pyplot as plt
+from pathlib import Path
+from typing import Any
 from torch.utils.data import Dataset
-from sklearn.model_selection import train_test_split
 from modules.lungsound import LungSoundAudio, LungSoundFeatures
 from modules.transforms import *
 
@@ -98,6 +97,10 @@ class AudioDataset(Dataset):
         self.data = None
         self.load_data()
         self.handle_classes()
+        if self.sample_limit is not None:
+            self.data = self.apply_sample_limit(
+                self.data, self.sample_limit, self.random_seed
+            )
         if split != "all":
             self.data = self.split_data(
                 self.data,
@@ -105,7 +108,6 @@ class AudioDataset(Dataset):
                 train_size=0.8,
                 val_size=0.1,
                 test_size=0.1,
-                seed=self.random_seed
             )
 
     def __len__(self) -> int:
@@ -126,6 +128,42 @@ class AudioDataset(Dataset):
     def load_data(self) -> pd.DataFrame:
         raise NotImplementedError
 
+    @staticmethod
+    def apply_sample_limit(data: pd.DataFrame, sample_limit: int, random_seed: int) -> pd.DataFrame:
+        """
+        Apply a sample limit per class to the dataset.
+        Args:
+            data (pd.DataFrame): The full dataset as a pandas DataFrame. Must contain a "Diagnosis" column.
+            sample_limit (int): Maximum number of samples per class to include in the dataset.
+            random_seed (int): Random seed for reproducibility when sampling.
+        Returns:
+            pd.DataFrame: The dataset with the sample limit applied.
+        """
+        dfs = []
+        for i, group in data.groupby("Diagnosis"):
+            if len(group) <= sample_limit:
+                dfs.append(group)
+            else:
+                unique_patients = pd.Series(group["PatientId"].unique())
+                if sample_limit <= len(unique_patients):
+                    # Choose a subset of unique patients
+                    selected_patients = unique_patients.sample(n=sample_limit, random_state=random_seed).tolist()
+                    # Filter the group to include only the selected patients
+                    df_filtered = group[group["PatientId"].isin(selected_patients)]
+                    # Then, sample 1 random sample from each of the selected patients
+                    df_i = df_filtered.groupby("PatientId").sample(n=1, random_state=random_seed)
+                else:
+                    # First, choose 1 random sample for each unique patient
+                    df_i = group.groupby("PatientId").sample(n=1, random_state=random_seed)
+                    # Then, randomly sample additional patients until we reach the sample limit
+                    df_remaining = group[~group.index.isin(df_i.index)]
+                    sample_limit_remaining = sample_limit - len(df_i)
+                    df_additional = df_remaining.sample(n=sample_limit_remaining, random_state=random_seed)
+                    df_i = pd.concat([df_i, df_additional], ignore_index=True)
+                dfs.append(df_i)
+
+        return pd.concat(dfs, ignore_index=True)
+
     def handle_classes(self):
         """
         Filter the dataset to only include samples with labels in our DIAGNOSIS mapping.
@@ -136,27 +174,25 @@ class AudioDataset(Dataset):
         self.data = self.data[self.data["Diagnosis"].isin(self.classes)]
         # Map diagnosis to label indices
         self.data["Label"] = self.data["Diagnosis"].map(self.labels)
-        # Apply sample limit if specified
-        if self.sample_limit is not None:
-            dfs = []
-            for i, group in self.data.groupby("Diagnosis"):
-                df_i = group.sample(n=min(len(group), self.sample_limit), random_state=self.random_seed)
-                dfs.append(df_i)
-            self.data = pd.concat(dfs, ignore_index=True)
         # Reset index after filtering
         self.data.reset_index(drop=True, inplace=True)
 
     @staticmethod
-    def split_data(data: pd.DataFrame, split: str, train_size=0.8, val_size=0.1, test_size=0.1, seed=None) -> pd.DataFrame:
+    def split_data(data: pd.DataFrame, split: str, train_size: float = 0.8, val_size: float = 0.1, test_size: float = 0.1) -> pd.DataFrame:
         """
         Split the dataset into train/val/test sets.
+        It performs a group-based stratified split based on the "PatientId" to ensure that:
+        1. No patient appears in more than one split (train/val/test) to prevent data leakage.
+        2. Each split contains samples from all classes to avoid empty classes in any partition.
+        3. The proportions of train/val/test are approximately maintained for each class.
+            It uses a greedy algorithm to assign patients to splits while trying to balance the class distributions.
+
         Args:
-            data (pd.DataFrame): The full dataset as a pandas DataFrame. Must contain a "Label" column for stratification.
+            data (pd.DataFrame): The full dataset as a pandas DataFrame. Must contain 'Label' and 'PatientId' columns.
             split (str): Which split to return. Can be "train", "val", "test", or "all".
             train_size (float): Proportion of the dataset to include in the train split. Default is 0.8.
             val_size (float): Proportion of the dataset to include in the validation split. Default is 0.1.
             test_size (float): Proportion of the dataset to include in the test split. Default is 0.1.
-            seed (int): Random seed for reproducibility. Default is None.
         Returns:
             A pandas DataFrame containing only the samples for the specified split.
         """
@@ -167,29 +203,86 @@ class AudioDataset(Dataset):
         if not abs(total_size - 1.0) < 1e-6:
             raise ValueError(f"train_size + val_size + test_size must equal 1. Got {total_size}.")
 
-        # 1. Split into train and temp (val+test)
-        train_data, temp_data = train_test_split(
-            data,
-            test_size=(1-train_size),
-            stratify=data["Label"],
-            shuffle=True,
-            random_state=seed
-        )
-        # 2. Split temp into val and test
-        val_data, test_data = train_test_split(
-            temp_data,
-            test_size=test_size / (test_size + val_size),
-            stratify=temp_data["Label"],
-            shuffle=True,
-            random_state=seed
-        )
-        # 3. Assign the appropriate split to self.data
+        if "PatientId" not in data.columns:
+            raise KeyError("The 'PatientId' column is required to perform group-based splitting without data leakage.")
+
+        # Map sample counts and medical labels to each unique patient ID
+        patient_counts = data.groupby("PatientId").size().to_dict()             # patient_counts = {PatientId: count for PatientID}
+        patient_labels = data.groupby("PatientId")["Label"].first().to_dict()   # patient_labels = {PatientId: Label}
+        
+        # Group patient IDs by their diagnosis class for stratification
+        all_classes = sorted(data["Label"].unique())
+        patients_by_class = {c: [] for c in all_classes}
+        for p, label in patient_labels.items():
+            patients_by_class[label].append(p)
+
+        # Initialize sets to store the isolated patient IDs assigned to each partition
+        train_patients, val_patients, test_patients = set(), set(), set()
+
+        # ------
+        # Step 1: Initial allocation to ensure no empty classes in any split
+        # ------
+        # Allocate at least one patient per class to each split to ensure no empty classes.
+        # Patients within each class are sorted by sample size in descending order for determinism.
+        for label, p_list in patients_by_class.items():
+            p_list.sort(key=lambda p: patient_counts[p], reverse=True)
+
+            if len(p_list) >= 3:
+                train_patients.add(p_list.pop(0))  # Largest patient is assigned to Train
+                val_patients.add(p_list.pop(0))    # Second largest is assigned to Validation
+                test_patients.add(p_list.pop(0))   # Third largest is assigned to Test
+            else:
+                raise ValueError(
+                    f"Class {label} has only {len(p_list)} patients. "
+                    f"Cannot distribute across 3 splits without causing patient leakage."
+                )
+
+        # ------
+        # Step 2: Greedy algorithm to assign remaining patients while balancing class distributions
+        # ------
+        # Collect all remaining unallocated patients and sort them by descending sample size
+        remaining_patients = [p for p_list in patients_by_class.values() for p in p_list]
+        remaining_patients.sort(key=lambda p: patient_counts[p], reverse=True)
+
+        # Distribute unallocated patients based on the target proportions of their specific class
+        for p in remaining_patients:
+            p_cls = patient_labels[p]   # Class of the current patient
+
+            # Count the current total number of samples for this class already allocated to each split
+            current_train_cls = sum(patient_counts[pt] for pt in train_patients if patient_labels[pt] == p_cls)
+            current_val_cls = sum(patient_counts[pv] for pv in val_patients if patient_labels[pv] == p_cls)
+            current_test_cls = sum(patient_counts[ptest] for ptest in test_patients if patient_labels[ptest] == p_cls)
+
+            total_cls_allocated = current_train_cls + current_val_cls + current_test_cls
+
+            # Calculate the ideal target sizes for this class based on the current subset volume
+            target_train_cls = total_cls_allocated * train_size
+            target_val_cls = total_cls_allocated * val_size
+            target_test_cls = total_cls_allocated * test_size
+
+            # Determine the current sample deficits for this class in each split
+            deficit_train = target_train_cls - current_train_cls
+            deficit_val = target_val_cls - current_val_cls
+            deficit_test = target_test_cls - current_test_cls
+
+            # Assign the current patient to the split displaying the largest specific class deficit
+            max_deficit = max(deficit_train, deficit_val, deficit_test)
+            if max_deficit == deficit_train:
+                train_patients.add(p)
+            elif max_deficit == deficit_val:
+                val_patients.add(p)
+            else:
+                test_patients.add(p)
+
+        # ------
+        # Step 3: Return the appropriate split based on the assigned patient IDs
+        # ------
         if split == "train":
-            return train_data.reset_index(drop=True)
+            return data[data["PatientId"].isin(train_patients)].reset_index(drop=True)
         elif split == "val":
-            return val_data.reset_index(drop=True)
+            return data[data["PatientId"].isin(val_patients)].reset_index(drop=True)
         elif split == "test":
-            return test_data.reset_index(drop=True)
+            return data[data["PatientId"].isin(test_patients)].reset_index(drop=True)
         else:
             raise ValueError(f"Invalid split: {split}. Must be 'train', 'val', 'test', or 'all'.")
 
@@ -248,7 +341,7 @@ class ICBHIAudioDataset(AudioDataset):
 
     def load_data(self) -> pd.DataFrame:
         """ Load data from the ICBHI dataset. """
-        # Check if already exists a metadata.csv file with all the metadata
+        # In case it's a preprocessed dataset with a metadata.csv file
         metadata_file = os.path.join(self.root, self.name, "metadata.csv")
         if os.path.exists(metadata_file):
             self.data = pd.read_csv(metadata_file)
@@ -346,7 +439,7 @@ class KAUHAudioDataset(AudioDataset):
 
     def load_data(self) -> pd.DataFrame:
         """ Load data from the KAUH dataset. """
-        # Check if already exists a metadata.csv file with all the metadata
+        # In case it's a preprocessed dataset with a metadata.csv file
         metadata_file = os.path.join(self.root, self.name, "metadata.csv")
         if os.path.exists(metadata_file):
             self.data = pd.read_csv(metadata_file)
@@ -371,8 +464,8 @@ class CombinedAudioDataset(AudioDataset):
     def __init__(
             self,
             root: str | Path,
-            split: str,
-            classes: list[str],
+            split: str = "all",
+            classes: list[str] = DIAGNOSIS,
             transform: AudioTransform | Compose | None = None,
             random_seed: int = 42,
             sample_limit: int | None = None,
@@ -399,8 +492,8 @@ class FeaturesDataset(Dataset):
     def __init__(
             self,
             root: str | Path,
-            split: str,
             feature_extractor: str | list[str],
+            split: str = "all",
             classes: list[str] = DIAGNOSIS,
             transform: FeatureTransform | Compose | None = None,
             random_seed: int = 42,
@@ -410,16 +503,16 @@ class FeaturesDataset(Dataset):
         Initialize the dataset.
         Args:
             root (str | Path): Root directory of the dataset.
-            split (str): Dataset split. Can be "train", "val", "test", or "all".
             feature_extractor (str | list[str]): Name(s) of the feature extractor(s) used to generate the features. This should correspond to a subdirectory in the preprocessed data directory.
+            split (str): Dataset split. Can be "train", "val", "test", or "all". Default is "all".
             classes (list[str]): List of classes to include in the dataset. Only samples with these diagnoses will be included. Default is all classes in the DIAGNOSIS list.
             transform (FeatureTransform | Compose | None): Optional transform pipeline to apply to each sample's features.
             random_seed (int): Random seed for reproducibility when splitting the dataset. Default is 42.
             sample_limit (int | None): Maximum number of samples per class to include in the dataset. If None, include all samples. Default is None.
         """
         self.root = Path(root)
-        self.split = split
         self.feature_extractor = feature_extractor
+        self.split = split
         self.transform = transform
         self.random_seed = random_seed
         self.sample_limit = sample_limit
@@ -428,6 +521,10 @@ class FeaturesDataset(Dataset):
         self.data = None
         self.load_data()
         self.handle_classes()
+        if self.sample_limit is not None:
+            self.data = AudioDataset.apply_sample_limit(
+                self.data, self.sample_limit, self.random_seed
+            )
         if split != "all":
             self.data = AudioDataset.split_data(
                 self.data,
@@ -435,7 +532,6 @@ class FeaturesDataset(Dataset):
                 train_size=0.8,
                 val_size=0.1,
                 test_size=0.1,
-                seed=self.random_seed
             )
 
     def __len__(self) -> int:
@@ -443,29 +539,17 @@ class FeaturesDataset(Dataset):
 
     def __getitem__(self, idx: int) -> tuple[LungSoundFeatures, int]:
         row = self.data.iloc[idx]
-        file_name = row["FileName"]
         label = row["Label"]
 
         if isinstance(self.feature_extractor, list):
-            # If it's a list, we need to stack the features from each extractor in the list
-            samples = []
-            sr = set()
-            for extractor in self.feature_extractor:
-                file_path = self.root / row["Source"] / extractor / row["Diagnosis"] / file_name
-                sample = LungSoundFeatures(file_path)
-                samples.append(sample.features)
-                sr.add(sample.sr)
-            # Check that all sample rates are the same
-            if len(sr) > 1:
-                raise ValueError(f"All feature extractors must have the same sample rate. Got {sr}.")
-            # Stack the features along the channel dimension
-            features = np.stack(samples, axis=-1)
-            sample = LungSoundFeatures()
-            sample.features = features
-            sample.sr = sr.pop()
+            # If it's a list of extractors, we need to stack the features from each extractor
+            sample = self.stack_features(idx, self.feature_extractor)
         else:
             # If it's a single extractor, we can load the features directly
-            file_path = self.root / row["Source"] / self.feature_extractor / row["Diagnosis"] / file_name
+            source = row["Source"]
+            diagnosis = row["Diagnosis"]
+            file_name = row["FileName"]
+            file_path = self.root / source / self.feature_extractor / diagnosis / file_name
             sample = LungSoundFeatures(file_path)
 
         if self.transform is not None:
@@ -473,6 +557,34 @@ class FeaturesDataset(Dataset):
 
         sample.info = row.to_dict()
         return sample, label
+
+    def stack_features(self, idx: int, extractors: list[str]) -> LungSoundFeatures:
+        """
+        Stack features from multiple extractors along the channel dimension.
+        Args:
+            idx (int): Index of the sample to load and stack features for.
+            extractors (list[str]): List of feature extractor names to stack. Each should correspond to a subdirectory in the preprocessed data directory.
+        Returns:
+            LungSoundFeatures: The stacked features for the sample at the given index.
+        """
+        sample = self.data.iloc[idx]
+        source = sample["Source"]
+        diagnosis = sample["Diagnosis"]
+        file_name = sample["FileName"]
+        all_features = []
+        sr = set()
+        for extractor in extractors:
+            file_path = self.root / source / extractor / diagnosis / file_name
+            features_sample = LungSoundFeatures(file_path)
+            all_features.append(features_sample.features)
+            sr.add(features_sample.sr)
+        # Check that all sample rates are the same
+        if len(sr) > 1:
+            raise ValueError(f"All feature extractors must have the same sample rate. Got {sr}.")
+        # Stack the features along the channel dimension
+        features = np.stack(all_features, axis=-1)
+        stacked_sample = LungSoundFeatures(features=features, sr=sr.pop())
+        return stacked_sample
 
     def get_preprocessing(self) -> Any:
         if isinstance(self.feature_extractor, list):
@@ -519,13 +631,6 @@ class FeaturesDataset(Dataset):
         self.data = self.data[self.data["Diagnosis"].isin(self.classes)]
         # Map diagnosis to label indices
         self.data["Label"] = self.data["Diagnosis"].map(self.labels)
-        # Apply sample limit if specified
-        if self.sample_limit is not None:
-            dfs = []
-            for i, group in self.data.groupby("Diagnosis"):
-                df_i = group.sample(n=min(len(group), self.sample_limit), random_state=self.random_seed)
-                dfs.append(df_i)
-            self.data = pd.concat(dfs, ignore_index=True)
         # Reset index after filtering
         self.data.reset_index(drop=True, inplace=True)
 
@@ -553,9 +658,9 @@ class FeaturesDataset(Dataset):
             fig, axes = plt.subplots(1, num_features, figsize=(5 * num_features, 4), constrained_layout=True)
             axes = axes.flatten()
             for i, (stack_feature, params) in enumerate(plot_params.items()):
-                sample_channel = LungSoundFeatures()
-                sample_channel.features = sample.features[:, :, i]
-                sample_channel.sr = sample.sr
+                features = sample.features[:, :, i]
+                sr = sample.sr
+                sample_channel = LungSoundFeatures(features=features, sr=sr)
                 sample_channel.plot_features(title=f"{stack_feature}", ax=axes[i], **params)
             plt.suptitle(f"{file_name}")
             plt.show()
@@ -569,15 +674,15 @@ class ICBHIFeaturesDataset(FeaturesDataset):
     def __init__(
             self,
             root: str | Path,
-            split: str,
             feature_extractor: str | list[str],
+            split: str = "all",
             classes: list[str] = DIAGNOSIS,
             transform: FeatureTransform | Compose | None = None,
             random_seed: int = 42.,
             sample_limit: int | None = None,
         ):
         self.name = "ICBHI"
-        super().__init__(root, split, feature_extractor, classes, transform, random_seed, sample_limit)
+        super().__init__(root, feature_extractor, split, classes, transform, random_seed, sample_limit)
 
 
 class KAUHFeaturesDataset(FeaturesDataset):
@@ -585,15 +690,15 @@ class KAUHFeaturesDataset(FeaturesDataset):
     def __init__(
             self,
             root: str | Path,
-            split: str,
             feature_extractor: str | list[str],
+            split: str = "all",
             classes: list[str] = DIAGNOSIS,
             transform: FeatureTransform | Compose | None = None,
             random_seed: int = 42,
             sample_limit: int | None = None,
         ):
         self.name = "KAUH"
-        super().__init__(root, split, feature_extractor, classes, transform, random_seed, sample_limit)
+        super().__init__(root, feature_extractor, split, classes, transform, random_seed, sample_limit)
 
 
 class CombinedFeaturesDataset(FeaturesDataset):
@@ -601,20 +706,20 @@ class CombinedFeaturesDataset(FeaturesDataset):
     def __init__(
             self,
             root: str | Path,
-            split: str,
             feature_extractor: str | list[str],
+            split: str = "all",
             classes: list[str] = DIAGNOSIS,
             transform: FeatureTransform | Compose | None = None,
             random_seed: int = 42,
             sample_limit: int | None = None,
         ):
         self.name = "Combined_ICBHI_KAUH"
-        super().__init__(root, split, feature_extractor, classes, transform, random_seed, sample_limit)
+        super().__init__(root, feature_extractor, split, classes, transform, random_seed, sample_limit)
 
     def load_data(self) -> pd.DataFrame:
         """ Load and combine data from both ICBHI and KAUH datasets. """
-        icbhi = ICBHIFeaturesDataset(self.root, "all", self.feature_extractor, self.classes)
-        kauh = KAUHFeaturesDataset(self.root, "all", self.feature_extractor, self.classes)
+        icbhi = ICBHIFeaturesDataset(self.root, self.feature_extractor, "all", self.classes)
+        kauh = KAUHFeaturesDataset(self.root, self.feature_extractor, "all", self.classes)
         self.data = pd.concat([icbhi.data, kauh.data], ignore_index=True)
         self.preprocessing_icbhi = icbhi.preprocessing
         self.preprocessing_kauh = kauh.preprocessing
