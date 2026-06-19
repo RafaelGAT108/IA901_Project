@@ -203,10 +203,6 @@ Este projeto foi desenvolvido principalmente em Python, com a maior parte da exp
 ## Workflow
 
 ![workflow](assets/workflow.png)
-## Workflow
-
-![workflow](assets/workflow.png)
-
 
 ## Experimentos e Resultados 
 
