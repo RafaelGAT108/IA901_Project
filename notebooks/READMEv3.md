@@ -75,7 +75,7 @@ Conforme identificado na análise exploratória, as gravações originais aprese
 Para contornar essa limitação, o pipeline atual substitui o zero-padding por uma estratégia de janelamento com sobreposição (*windowing*), aplicada da seguinte forma:
 
 - **Reamostragem**: todos os sinais são reamostrados para uma taxa de amostragem comum de 22.050 Hz.
-- **Janelamento**: cada gravação é dividida em janelas de 5 segundos. Para a maioria das classes, utiliza-se um *hop* de 2,5 segundos (50% de sobreposição), o que também funciona como uma forma de data augmentation, aumentando a quantidade de amostras disponíveis para as classes minoritárias. Para a classe COPD — que já é amplamente majoritária no conjunto de dados — utiliza-se um *hop* de 5 segundos (sem sobreposição), de forma a evitar a geração de janelas redundantes e, assim, reduzir o desbalanceamento entre classes.
+- **Janelamento**: cada gravação é dividida em janelas de 5 segundos. Para a maioria das classes, utiliza-se um *hop* de 2,5 segundos (50% de sobreposição), o que também funciona como uma forma de data augmentation, aumentando a quantidade de amostras disponíveis para as classes minoritárias. Para a classe COPD, utiliza-se um *hop* de 5 segundos (sem sobreposição), de forma a evitar a geração de janelas redundantes e, assim, reduzir o desbalanceamento entre classes.
 - **Normalização**: cada janela de áudio é normalizada pela sua amplitude máxima.
 
 Essa abordagem elimina o artefato de padding observado anteriormente e atua simultaneamente como mecanismo de data augmentation (para classes minoritárias) e de subamostragem (para a classe COPD).
@@ -157,7 +157,7 @@ Após a extração, todas as representações (individuais e combinadas) são ex
 
 A classificação é realizada utilizando três arquiteturas de CNN consagradas para classificação de imagens: **ResNet50**, **InceptionV3** e **DenseNet121**. O pipeline de treinamento foi implementado em PyTorch, com PyTorch Lightning estruturando o laço de treinamento.
 
-Para cada arquitetura, o mesmo protocolo experimental é repetido para 9 configurações de features: as 6 representações individuais (MagSTFT, MelSpectrogram, MFCC, MFCCDelta, Chroma e Phase) e as 3 combinações de canais (ImagSTFT + RealSTFT, MagSTFT + Phase, e MelSpectrogram + MFCC + Chroma) descritas acima. RealSTFT e ImagSTFT, em particular, não são utilizadas isoladamente, apenas como parte da combinação de 2 canais. Isso totaliza 9 treinamentos por arquitetura — porém, ao todo, são realizados 10 treinamentos por arquitetura, pois a combinação MelSpectrogram + MFCC + Chroma é treinada duas vezes: uma vez do zero e outra reaproveitando a mesma configuração de features com pesos pré-treinados no ImageNet (`IMAGENET1K_V1`), permitindo comparar o efeito do pré-treino especificamente para essa combinação. Os principais hiperparâmetros utilizados são:
+Para cada arquitetura, o mesmo protocolo experimental é repetido para 9 configurações de features: as 6 representações individuais (MagSTFT, MelSpectrogram, MFCC, MFCCDelta, Chroma e Phase) e as 3 combinações de canais (ImagSTFT + RealSTFT, MagSTFT + Phase, e MelSpectrogram + MFCC + Chroma) descritas acima. RealSTFT e ImagSTFT, em particular, não são utilizadas isoladamente, apenas como parte da combinação de 2 canais. Isso totaliza 9 treinamentos por arquitetura, ao todo são realizados 10 treinamentos por arquitetura, pois a combinação MelSpectrogram + MFCC + Chroma é treinada duas vezes: uma vez do zero e outra reaproveitando a mesma configuração de features com pesos pré-treinados no ImageNet (`IMAGENET1K_V1`), permitindo comparar o efeito do pré-treino especificamente para essa combinação. Os principais hiperparâmetros utilizados são:
 
 | Hiperparâmetro | Valor |
 |---|---|
@@ -178,11 +178,11 @@ Para cada arquitetura, o mesmo protocolo experimental é repetido para 9 configu
 
 O acompanhamento dos experimentos (curvas de perda, acurácia e demais métricas ao longo do treinamento) é feito via TensorBoard.
 
-É importante destacar a diferença entre os dois mecanismos da tabela acima relacionados ao desbalanceamento de classes. A divisão por paciente em treino/validação/teste, com proporções semelhantes de amostras por classe entre os splits, **não resolve** o desbalanceamento em si — apenas evita o vazamento de dados (mesmo paciente em mais de um split) e garante que esse desbalanceamento esteja igualmente refletido nos três conjuntos, sem favorecer artificialmente nenhum deles. Quem efetivamente trata o desbalanceamento entre classes **durante o treinamento** é o sampler "equalizer", que rebalanceia a frequência de amostragem das classes minoritárias e majoritárias a cada época, com limite de 1000 amostras por classe.
+É importante destacar a diferença entre os dois mecanismos da tabela acima relacionados ao desbalanceamento de classes. A divisão por paciente em treino/validação/teste, com proporções semelhantes de amostras por classe entre os splits, não resolve o desbalanceamento em si. Esse processo apenas evita o vazamento de dados (mesmo paciente em mais de um split) e garante que esse desbalanceamento esteja igualmente refletido nos três conjuntos, sem favorecer artificialmente nenhum deles. Quem efetivamente trata o desbalanceamento entre classes **durante o treinamento** é o sampler "equalizer", que rebalanceia a frequência de amostragem das classes minoritárias e majoritárias a cada época, com limite de 1000 amostras por classe.
 
 ### Métricas de Avaliação
 
-Como métricas de avaliação são utilizadas as métricas clássicas de classificação: acurácia, precision, recall e F1-Score, calculadas tanto de forma global quanto individualmente por classe. Para cada experimento (combinação de arquitetura + representação tempo-frequência), são gerados o relatório de classificação (`classification_report`), curvas ROC e Precision-Recall por classe (estratégia one-vs-rest) e a matriz de confusão. Os resultados de cada experimento — incluindo rótulos verdadeiros, predições e probabilidades por classe — são salvos em arquivo CSV para análise posterior.
+Como métricas de avaliação são utilizadas as métricas clássicas de classificação: acurácia, precision, recall e F1-Score, calculadas tanto de forma global quanto individualmente por classe. Para cada experimento (combinação de arquitetura + representação tempo-frequência), são gerados o relatório de classificação, curvas ROC e Precision-Recall por classe (estratégia one-vs-rest) e a matriz de confusão. Os resultados de cada experimento são salvos em arquivo CSV para análise posterior, incluindo rótulos verdadeiros, predições e probabilidades por classe.
 
 ## Ferramentas
 
@@ -203,9 +203,6 @@ Este projeto foi desenvolvido principalmente em Python, com a maior parte da exp
 ## Workflow
 
 ![workflow](assets/workflow.png)
-
-> O diagrama de workflow ainda reflete a primeira versão do pipeline (geração de imagens via `librosa.display.specshow` e treinamento em TensorFlow/Keras). Está nos próximos passos atualizá-lo para refletir o pipeline atual, descrito na seção de Metodologia.
-
 ## Workflow
 
 ![workflow](assets/workflow.png)
