@@ -1,4 +1,5 @@
-# Classificação de Sons Pulmonares a partir de Espectrogramas
+# `Classificação de Sons Pulmonares a partir de Espectrogramas`
+# `Classification of Lung Sounds using Spectrograms`
 
 ## Apresentação
 
@@ -12,316 +13,424 @@ O presente projeto foi originado no contexto das atividades da disciplina de pó
 
 ## Descrição do Projeto
 
-O objetivo do projeto é utilizar sons pulmonares para classificação de doenças respiratórias, como asma, pneumonia, etc. Para isso, serão utilizadas técnicas de processamento de imagens para converter os sinais áudios originais em espectrogramas, como, por exemplo, a transformada curta de Fourier (stft), com a intenção de manter as informações em relação ao tempo e à frequência.
+As doenças respiratórias estão entre as principais causas de morbidade e mortalidade no mundo. Segundo a World Health Organization, enfermidades como pneumonia, doença pulmonar obstrutiva crônica (DPOC) e asma afetam milhões de pessoas anualmente, impactando diretamente o sistema de saúde. O diagnóstico precoce dessas condições é fundamental para melhorar o prognóstico dos pacientes e reduzir complicações.
+
+Um dos métodos mais utilizados na avaliação do sistema respiratório é a ausculta pulmonar. Durante o exame, o profissional de saúde analisa os sons produzidos pela passagem de ar pelas vias respiratórias, buscando identificar padrões anormais, como sibilos (wheezes), estalos (crackles) e outros ruídos adventícios associados a diferentes patologias. No entanto, a interpretação dos sons pulmonares depende da experiência do examinador e pode variar entre profissionais. Com isso, técnicas de inteligência artificial têm sido exploradas como ferramentas de apoio ao diagnóstico, permitindo a análise automática de sons respiratórios.
+
+Nesse contexto, o objetivo deste projeto é desenvolver modelos para a classificação de diferentes doenças respiratórias a partir de gravações de ausculta pulmonar. Para isso, exploramos a transformação dos sinais de áudio em representações tempo-frequência, utilizando transformadas como a Short-Time Fourier Transform (STFT), o Mel Spectrogram e os Mel-Frequency Cepstral Coefficients (MFCCs). Essas representações permitem capturar simultaneamente características temporais e espectrais dos sons respiratórios. A partir desse processamento, procuramos entender se tais transformações são capazes de preservar as características relevantes e anomalias dos sons pulmonares, ao ponto de auxiliarem na identificação de patologias.
+
+## Bases de Dados
+
+Os datasets públicos utilizados no projeto consistem em gravações de sons respiratórios obtidas em contexto clínico, acompanhadas de anotações e metadados associados. As bases foram escolhidas devido ao amplo uso em pesquisas de classificação automática de doenças pulmonares. As informações apresentadas a seguir foram obtidas a partir da análise exploratória realizada em `audio_analysis.ipynb`.
+
+Os áudios de ambas as bases estão disponíveis no formato `.wav`, e foram adquiridos utilizando diferentes estetoscópios digitais.
+
+### [ICBHI 2017](https://bhichallenge.med.auth.gr/ICBHI_2017_Challenge)
+
+A base ICBHI 2017 é composta por **920 gravações respiratórias**, provenientes de **126 pacientes**, anotadas em **8 classes diagnósticas**. As anotações estão em arquivos de texto (`.txt`), sendo um deles responsável por relacionar o identificador de cada paciente ao respectivo diagnóstico (`ICBHI_Challenge_diagnosis.txt`), e outro contendo informações demográficas (`ICBHI_Challenge_demographic_information.txt`).
+
+### [KAUH (2021)](https://data.mendeley.com/datasets/jwyy9np4gv/3)
+
+A base KAUH (2021) é composta por **336 gravações respiratórias** de **112 pacientes**, anotadas em **8 classes diagnósticas**, podendo haver co-ocorrência de classes. Durante a nossa análise exploratória, removemos amostras multilabel, resultando em **324 gravações respiratórias** de **108 pacientes**. As anotações estão no fomato de planilha Excel (`Data annotation.xlsx`), contendo dados do paciente, informações sobre a aquisição do exame (modo de filtragem do estetoscópio, por exemplo) e o diagnóstico associado.
+
+### Base Combinada
+
+Ao combinar as duas bases (1.244 amostras no total), verificamos que o desbalanceamento entre classes é o principal desafio do projeto: a classe COPD concentra 820 amostras (≈ 66% do total combinado), enquanto classes como Bronchitis, Bronchiolitis, Lung Fibrosis, Pleural Effusion e LRTI somam poucas dezenas de amostras no total.
+
+| Característica | ICBHI 2017 | KAUH (2021) |
+| -------------- | ---------: | ----------: |
+| Total de gravações    | 920 | 324 |
+| Número de pacientes   | 126 | 108 |
+| Classes diagnósticas  |   8 |   8 |
+| Classes consideradas  | COPD, Pneumonia, Healthy, URTI, Bronchiectasis, Bronchiolitis, LRTI, Asthma | Healthy, Asthma, Heart Failure, COPD, Pneumonia, Lung Fibrosis, Bronchitis, Pleural Effusion |
+| Classe majoritária    | COPD — 793 amostras (≈ 86% do ICBHI) | Healthy — 105 amostras (≈ 32% do KAUH) |
+| Classe minoritária    | Asthma — 1 amostra | Pleural Effusion — 6 amostras |
+| Taxa de amostragem    | Variável conforme o equipamento de aquisição | 4.000 Hz |
+| Duração mínima        |   7,86 s | 5,00 s  |
+| Duração máxima        |  86,20 s | 30,00 s |
+| Duração média         |  21,49 s | 17,18 s |
+| Tipo de anotação      | Diagnóstico por paciente, dados demográficos (idade, sexo, IMC/peso/altura) e marcação manual de ciclos respiratórios, sibilos e estalos por especialistas | Planilha contendo dados do paciente, modo de filtragem acústica do estetoscópio, ponto de auscultação e diagnóstico associado |
+
+---
+
+![combined_class_dist](assets/Label_Distribuition_by_Dataset.png)
+
+Para mais informações, consulte o Datasheet: [Datasheet (PDF)](data/datasheet.pdf)
+
 
 ## Metodologia
 
-- Inicialmente, o sinal de áudio foi transformado para o domínio tempo-frequência utilizando a Short-Time Fourier Transform (STFT). A partir dessa representação, diferentes transformadas foram extraídas, incluindo espectrograma em escala logarítmica, Mel spectrogram, coeficientes cepstrais Mel-frequency (MFCC), derivadas temporais dos MFCCs (delta coefficients), características cromáticas (Chroma), contraste espectral, Constant-Q Transform (CQT) e fase espectral. As equações destas transformações são apresentadas abaixo:
+### Pré-processamento do Sinal de Áudio (1D)
 
-### Short-Time Fourier Transform (STFT)
+Conforme identificado na análise exploratória, as gravações originais do dataset ICBHI apresentam durações bastante heterogêneas (entre 7,86s e 86,20s, com média de 21,49s), além de forte desbalanceamento entre classes. A primeira abordagem testada para padronizar as durações consistiu em preencher os áudios mais curtos com zeros e truncar os mais longos, fixando todas as amostras em 20 segundos. Essa estratégia, entretanto, introduz um problema: para os áudios mais curtos, é criada uma região "vazia" no espectrograma resultante, que não carrega informação sobre a patologia.
 
-A STFT divide o sinal em janelas curtas e calcula a Transformada de Fourier em cada uma.
+Para contornar essa limitação, o pipeline atual substitui o zero-padding por uma estratégia de segmentação, ou janelamento, dos áudios com sobreposição. Assim, foram realizados os seguinte pré-processamentos:
 
-A equação é:
+- **Reamostragem**: todos os sinais são reamostrados para uma taxa de amostragem comum de 22.050 Hz.
+- **Segmentação**: cada gravação é dividida em janelas de 5 segundos. Para a maioria das classes, utiliza-se um *hop* de 2,5 segundos (50% de sobreposição), o que também funciona como uma forma de data augmentation, aumentando a quantidade de amostras disponíveis para as classes minoritárias. Para a classe COPD, utiliza-se um *hop* de 5 segundos (ou seja, sem sobreposição), estratégia que serve como um *undersampling* desta classe para tentar mitigar o desbalanceamento.
+- **Normalização**: cada janela de áudio é normalizada para o intervalo [-1, 1].
+
+Essa abordagem atua simultaneamente como mecanismo de data augmentation (para classes minoritárias) e de subamostragem (para a classe COPD). O notebook `preprocess_audio.ipynb` contém este pipeline de transformações.
+
+### Extração de Características Tempo-Frequência (2D)
+
+A partir do sinal 1D pré-processado, diferentes representações tempo-frequência são extraídas utilizando a biblioteca `Librosa`. Todas partem da Short-Time Fourier Transform (STFT), que divide o sinal em janelas curtas e calcula a Transformada de Fourier em cada uma:
 
 $$X(m,k)=\sum_{n=0}^{N-1} x[n+mH]\,w[n]\,e^{-j2\pi kn/N}$$
 
 Sendo:
 
-- x[n]: sinal de áudio 
-- w[n]: janela (geralmente Hann) 
-- N: tamanho da FFT 
-- H: hop length 
-- m: índice temporal 
+- x[n]: sinal de áudio
+- w[n]: janela (geralmente Hann)
+- N: tamanho da FFT
+- H: hop length
+- m: índice temporal
 - k: bin de frequência
 
-### Magnitude do Espectro
-A magnitude representa a energia/amplitude de cada frequência ao longo do tempo. Ela é equacionada por:
+A partir do coeficiente complexo $X(m,k)$, são derivadas oito representações, as quais podem ser melhor visualizadas no notebook de exploração das transformadas `transform_analysis.ipynb`.
 
-$$|X(m, k)| = \sqrt{\Re(X)^2 \quad \text{+} \quad \Im(X)^2}$$
+**Parte Real e Parte Imaginária da STFT (RealSTFT / ImagSTFT)**
 
-### Conversão para decibéis (Spectrogram dB)
+$$\text{RealSTFT}(m,k) = \Re(X(m,k)) \qquad \text{ImagSTFT}(m,k) = \Im(X(m,k))$$
 
-A conversão para decibéis é util, tendo em vista que aproxima da percepção humana. Sua equação é dada por:
+**Magnitude do Espectro (MagSTFT)**
 
-$$S_{dB} = 20\log_{10}{(\frac{S}{S_{ref}})}$$
+A magnitude representa a energia/amplitude de cada frequência ao longo do tempo:
 
-Onde:
+$$|X(m, k)| = \sqrt{\Re(X)^2 + \Im(X)^2}$$
 
-- S: magnitude espectral
-- $S_{ref}$: referência (neste caso, o valor máximo).
+**Fase Espectral (Phase)**
 
-### Mel Spectrogram
+$$\phi(m, k) = \tan^{-1}\left(\frac{\Im(X(m, k))}{\Re(X(m, k))}\right)$$
 
-O resultado proveniente da transformada Mel Spectrogram se dá por duas etapas. Primeiro calcula-se o Espectrograma de Potência, conforme a equação:
+**Mel Spectrogram**
 
-$$
-P(m, k) = |X(m, k)|^2
-$$
+Calculada em duas etapas. Primeiro o espectrograma de potência:
+
+$$P(m, k) = |X(m, k)|^2$$
 
 Depois aplica-se um banco de filtros Mel:
 
-$$
-M(m,r)= \sum_k{H_r(k)P(m,k)}
-$$
+$$M(m,r)= \sum_k{H_r(k)P(m,k)}$$
 
-Onde:
+Onde $H_r(k)$ é o filtro triangular Mel e r é o índice do filtro. Essa transformação comprime altas frequências para imitar a audição humana.
 
-- $H_r(k)$: filtro triangular Mel\
-- r: índice do filtro Mel
+**Mel Frequency Cepstral Coefficients (MFCC)**
 
+Aplica-se a Discrete Cosine Transform (DCT) sobre o log-Mel spectrogram:
 
-Dessa forma, essa transformação comprime altas frequências para imitar a audição humana.
+$$L(m, r) = \log(M(m, r))$$
 
-### Mel Frequency Cepstral Coefficients (MFCC)
+$$C(m, n) = \sum_k^R{}L(m, r)\cos\left[\frac{\pi n}{R} \left(r + \frac{1}{2}\right)\right]$$
 
-Os MFCCs aplicam DCT no log-Mel spectrogram.
+Onde $C(m,n)$ é o coeficiente MFCC e R o número de filtros Mel.
 
-$$
-L(m, r) = \log(M(m, r))
-$$
+**Delta MFCC (MFCCDelta)**
 
-Discrete Cosine Transform (DCT):
-$$
-C(m, n) = \sum_k^R{}L(m, r)\cos[\frac{\pi n}{R} (r + \frac{1}{2})]
-$$
+Derivada temporal dos coeficientes MFCC:
 
-Onde:
+$$\Delta c_t= \frac{\sum_{n=1}^{N} n(c_{t+n}-c_{t-n})}{2\sum_{n=1}^{N} n^2}$$
 
-- $C(m,n)$: coeficiente MFCC 
-- R: número de filtros Mel
+**Chroma**
 
-### Delta MFCC
+$$Chroma(p, t) = \sum_{k \in K_{p}}{|X(t, k)|}$$
 
-$$
-\Delta c_t= \frac{\sum_{n=1}^{N} n(c_{t+n}-c_{t-n})}{2\sum_{n=1}^{N} n^2}
-$$
+Onde p é a classe cromática (C, C#, D, ...) e $K_p$ são os bins associados àquela nota.
 
-### Chroma
-Essa transformação é equacionada por:
+O notebook `preprocess_features.ipynb` contém este pipeline de extração de features para o treinamento.
 
-$$
-Chroma(p, t) = \sum_{k \in K_{p}}{|X(t, k)|}
-$$
+Abaixo, estão alguns exemplos de diferentes transformadas mostradas para uma amostra da classe Asthma.
 
-Onde: p é a classe cromática (C, C#, D, ...) e $K_P$ é o bins associados àquela nota.
+![workflow](assets/Extracted_Features_8_Samples.png)
 
-### Contrast
+**Combinações de canais (stacks)**
 
-$$
-SC_b(t) = 10\log_{10}(\frac{P_b(t)}{V_b(t)})
-$$
+Além das oito representações individuais, também foram testadas combinações de 2 a 3 representações empilhadas em um único tensor multicanal, de forma análoga aos canais RGB de uma imagem natural. Os experimentos incluem as combinações:
 
-Sendo $P_b(t)$ a média dos picos da banda e $V_b(t)$ a média dos vales da banda.
+- ImagSTFT + RealSTFT (2 canais)
 
-### Constant-Q Transform
-$$
-X(k,n)=
-\frac{1}{N_k}
-\sum_{m=0}^{N_k-1}
-x[n-m],
-w_k[m],
-e^{-j2\pi Qm/N_k}
-$$
+- MagSTFT + Phase (2 canais)
 
-$$
-CQT_{dB} = 20\log(|X(k, n)|)
-$$
+- MelSpectrogram + MFCC + Chroma (3 canais)
 
-### Fase Espectral
-A fase espectral, por sua vez, é equacionada por:
+Após a extração, todas as 8 representações individuais são salvas em arquivos `.npz`, formato binário do NumPy que permite armazenar múltiplos arrays de forma compacta, preservando a estrutura numérica das features e evitando custos adicionais durante o treinamento dos modelos.
 
-$$
-\phi(m, k) = \tan^{-1}(\frac{\Re(X(m, k))}{\Im(X(m, k))})
-$$
+### Modelos de Classificação e Treinamento
 
-Como métricas de avaliação será utilizado a acurácia do modelo, além das outras métricas como F1-Score, Recall e Precision tanto no aspecto de classificação global quanto individual por cada classe.
-Para os resultados preliminares, o dataset será avaliado em três etapas: A primeira avaliação se dará utilizando o dataset ICBHI2017 com os audios de 20 segundos de duração. No segundo momento, esse dataset será complementado com amostras do dataset KAUH para as classes Asma, Saudável e Pneumonia. Esse procedimento foi feito manualmente levando em consideração as labels presentes no próprio nome dos audios, indicando a qual classe eles pertenciam. Por fim, a terceira etapa consiste em realizar as transformações no dataset mesclado, porém, para cada 6 segundo dos audios, fazendo assim o data-augmentation. Essa abordagem foi utilizada em um dos trabalhos utilizados como referência para este projeto [3].
-O treinamento se dará via Transfer Learning com a rede InceptionV3, treinada por 10 épocas e com a divisão Holdout 80% para treinamento e 20% para validação.
+A classificação é realizada utilizando três arquiteturas de CNN muito utilizadas na literatura para classificação de imagens:  **InceptionV3**, **ResNet50** e **DenseNet121**. O pipeline de treinamento foi implementado em PyTorch, com PyTorch Lightning estruturando o laço de treinamento.
 
-## Bases de Dados e Evolução
+Para cada arquitetura, o mesmo protocolo experimental é repetido para cada configurações de features. Na primeira etapa, são avaliadas 6 features individuais:
 
-Os datasets públicos utilizados no projeto consistem em gravações de sons respiratórios obtidas em contexto clínico, acompanhadas de anotações e metadados associados. As bases foram escolhidas devido ao amplo uso em pesquisas de classificação automática de doenças pulmonares.
+- MagSTFT
+- MelSpectrogram
+- MFCC
+- MFCCDelta
+- Chroma
+- Phase
 
+Depois, são avaliadas 3 combinações de canais:
 
-| Base de Dados | Endereço na Web | Resumo descritivo |
-|-----|-----|-----|
-| ICBHI Challenge (2017) | https://bhichallenge.med.auth.gr/ICBHI_2017_Challenge | Dataset utilizado no ICBHI 2017 Respiratory Sound Challenge. Contém gravações respiratórias de pacientes, anotadas com 8 doenças pulmonares, além de anotações de ciclos respiratórios, sibilos e estalos realizadas por especialistas. Contém 920 amostras de 126 pacientes. |
-|KAUH (2021) Respiratory Sound Dataset | https://data.mendeley.com/datasets/jwyy9np4gv/3 | Base composta por gravações respiratórias obtidas com estetoscópio digital e disponibilizadas em diferentes modos de filtragem acústica, e anotados com 11 doenças cardiopulmonares. Contém 336 amostras de 112 pacientes. |
+- ImagSTFT + RealSTFT
+- MagSTFT + Phase
+- MelSpectrogram + MFCC + Chroma
 
-Datasheet: [Datasheet (PDF)](data/datasheet.pdf)
+RealSTFT e ImagSTFT, em particular, não são utilizadas isoladamente, apenas como parte da combinação de 2 canais. Isso totaliza 9 treinamentos por arquitetura. Ao todo são realizados 10 treinamentos por arquitetura, pois a combinação MelSpectrogram + MFCC + Chroma é treinada duas vezes: uma vez do zero e outra reaproveitando os pesos pré-treinados no ImageNet, permitindo comparar o efeito do pré-treino especificamente para essa combinação. Os principais hiperparâmetros utilizados são:
+
+| Hiperparâmetro | Valor |
+|---|---|
+| Arquiteturas testadas | ResNet50, InceptionV3, DenseNet121 |
+| Otimizador | AdamW |
+| Taxa de aprendizado | 1e-4 |
+| Weight decay | 1e-5 |
+| Scheduler | StepLR (step_size=7, gamma=0.1) |
+| Função de perda | CrossEntropyLoss |
+| Batch size | 32 |
+| Precisão de treinamento | Mixed precision (16-bit) |
+| Épocas máximas | 100, com early stopping e paciência de 10 épocas, monitorando `val_f1_macro` |
+| Checkpoint do modelo | Melhor checkpoint salvo conforme `val_f1_macro` |
+| Estratégia de balanceamento de classes | Sampler "equalizer" é utilizado no DataLoader para balanceamento entre classes durante o treinamento. Além disso, é estabelecido um limite de 1000 amostras por classe, reduzindo, assim, o número de amostras COPD |
+| Divisão dos dados | Holdout em treino/validação/teste, particionado por paciente para evitar que o mesmo paciente aparecesse em mais de uma partição, buscando também manter uma proporção semelhante de amostras por classe entre treino, validação e teste |
+| Semente | 42, para garantir reprodutibilidade |
+
+O acompanhamento dos experimentos (curvas de loss, f1 scores e demais métricas ao longo do treinamento) é feito via TensorBoard.
+
+Neste projeto foi adotado um particionamento *patient-wise*, garantindo que um mesmo paciente não aparecesse simultaneamente em diferentes conjuntos. Embora essa estratégia torne o problema mais desafiador, ela produz uma avaliação mais realista da capacidade de generalização do modelo, evitando possíveis vieses ou resultados inflados.
+
+É importante destacar a diferença entre os dois mecanismos da tabela acima relacionados ao desbalanceamento de classes. A divisão por paciente em treino/validação/teste, com proporções semelhantes de amostras por classe entre os splits, não resolve o desbalanceamento em si. Esse processo apenas evita o vazamento de dados (mesmo paciente em mais de um split) e garante que esse desbalanceamento esteja igualmente refletido nos três conjuntos, sem favorecer artificialmente nenhum deles. Quem efetivamente trata o desbalanceamento entre classes **durante o treinamento** é o sampler "equalizer", que rebalanceia a frequência de amostragem das classes minoritárias e majoritárias a cada época. Além disso, é adicionado um limite de 1000 amostras por classe, com o objetivo de evitar que o grande número de amostras COPD influencie nas métricas durante a avaliação.
+
+### Métricas de Avaliação
+
+Como métricas de avaliação são utilizadas as métricas clássicas de classificação: acurácia, precision, recall e F1-Score, calculadas tanto de forma global (micro e macro) quanto individualmente por classe. Para cada experimento (combinação de arquitetura + representação tempo-frequência), são gerados o relatório de classificação, curvas ROC e Precision-Recall por classe e a matriz de confusão. Os resultados de cada experimento são salvos em arquivo CSV para análise posterior, incluindo rótulos verdadeiros, predições e probabilidades por classe, além dos metadados dos datasets.
 
 ## Ferramentas
 
-Este projeto foi desenvolvido principalmente em Python, com a maior parte da exploração e dos experimentos documentados em notebooks. A seguir listamos as principais bibliotecas e arquivos de apoio que foram utilizados para pré-processamento de áudio, geração de espectrogramas, visualização e experimentos de classificação. 
+Este projeto foi desenvolvido principalmente em Python, com a maior parte da exploração e dos experimentos documentados em notebooks.
 
-- **Bibliotecas utilizadas:**
+- **Principais bibliotecas utilizadas:**
 	- **NumPy:** operações numéricas e arrays.
-	- **Librosa:** carregamento de áudio, transformações para o espaço 2D (STFT, Mel-spectrogram, MFCCs, etc.), e utilitários de áudio.
-	- **Matplotlib:** visualização de espectrogramas e gráficos.
-	- **Seaborn:** visualizações estatísticas e suporte estético aos gráficos.
+	- **Librosa:** carregamento de áudio, transformações para o espaço 2D (STFT, Mel-spectrogram, MFCCs, etc.) e utilitários de áudio.
+	- **SoundFile:** leitura e escrita dos arquivos de áudio pré-processados.
+	- **Matplotlib / Seaborn:** visualização de espectrogramas, distribuições e gráficos.
 	- **Pandas:** manipulação de tabelas, metadados e resultados.
 	- **scikit-learn:** split de conjuntos, métricas e utilitários de avaliação.
-	- **TensorFlow / Keras:** usado em experimentos de treinamento de modelos de classificação.
+	- **TensorFlow / Keras:** utilizado nos experimentos iniciais de treinamento de modelos de classificação (resultados preliminares).
+	- **PyTorch / PyTorch Lightning:** utilizado no pipeline atual de treinamento, estruturando os módulos de dados (`DataModule`) e de modelo (`LightningModule`), bem como callbacks de checkpoint e early stopping.
+	- **TensorBoard:** monitoramento dos experimentos, permitindo acompanhar métricas como perda, acurácia e curvas de treinamento entre diferentes execuções.
 
-**Ferramentas ainda a serem utilizadas:**
-Nos próximos passos, pretende-se migrar parte dos experimentos para o **PyTorch** e **PyTorch Lightining**, principalmente devido à maior flexibilidade para construção de pipelines experimentais, melhor integração com tarefas de deep learning e maior controle sobre etapas de treinamento. Também pretende-se utilizar o **TensorBoard** ou **WandB** para monitoramento dos experimentos, permitindo acompanhar métricas como perda, acurácia, curvas de treinamento e comparação entre diferentes execuções.
+## Ambiente Python
+
+### Conda
+
+Crie e ative o ambiente Conda a partir do arquivo `environment/conda.yaml`:
+
+```bash
+conda env create -f environment/conda.yaml
+conda activate lung_sounds
+```
+
+Para atualizar o ambiente:
+
+```bash
+conda env update -f environment/conda.yaml --prune
+```
+
+### Venv
+
+Alternativamente, você pode utilizar um ambiente virtual padrão do Python (`venv`):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+> **Observação sobre compatibilidade GPU/CUDA:**
+> Caso pretenda treinar modelos em GPU e a versão do PyTorch seja incompatível com a versão do CUDA instalada em seu sistema, será necessário atualizar ou reinstalar o PyTorch.
+> Consulte o guia oficial do PyTorch para obter o comando de instalação adequado à sua configuração: [Official PyTorch Start Guide](https://pytorch.org/get-started/locally/).
 
 ## Workflow
 
 ![workflow](assets/workflow.png)
 
-## Experimentos e Resultados preliminares
+## Experimentos e Resultados
 
-### Análise Exploratória
+### Comparação geral das Arquiteturas
 
-- Esta etapa do projeto consistiu na realização de uma análise exploratória da distribuição das durações dos sinais de áudio respiratório.
-O script percorre todas as pastas correspondentes às doenças respiratórias no dataset, identifica os arquivos .wav e calcula a duração de cada gravação utilizando a biblioteca Librosa. As durações e respectivas classes são armazenadas para posterior análise estatística. Foram analisadas 920 amostras de áudio:
+Abaixo, estão os resultados de cada CNN utilizando cada uma das 6 features individuais selecionadas. Para faciliar a comparação, avaliamos nesta etapa apenas os valores de F1 Score (micro e macro). Marcados em amarelo, estão os melhores resultados de cada Feature. Marcado em verde, está o resultado da melhor combinação de CNN e Feature utilizada.
 
-| Métrica | Valor |
-|---|---|
-| Duração mínima | 7,86 s |
-| Duração máxima | 86,20 s |
-| Duração média | 21,49 s |
+* Tabela com os valores da métrica F1 Score Micro (ou Acurácia)
 
-O histograma a seguir ilusta distribuição das durações dos sinais de áudio, evidenciando uma concentração de amostras com duração de 20 segundos. No entanto, observa-se a existência de gravações com durações discrepantes, alcançando valores significativamente inferiores e superiores à média do conjunto de dados. Essa heterogeneidade temporal pode dificultar o processo de treinamento dos modelos de aprendizado profundo, devido à inconsistência no comprimento das entradas. Como possível abordagem para minimizar esse problema, está sendo considerada a utilização apenas das amostras com durações próximas ao valor predominante observado no dataset, uma vez que essas representam a maior parte das gravações disponíveis. Alternativamente, também está em análise a aplicação de técnicas de padronização temporal durante o pré-processamento dos sinais.
-<img src="assets/preliminary_results/distribuição de duração dos audios.png" width="700">
-
-Adicionalmente, foram feitas análises individuais para cada classe do dataset, permitindo uma análise mais detalhada da distribuição das durações entre as diferentes patologias respiratórias. A análise individual das classes permitiu observar diferenças importantes tanto na quantidade de amostras quanto na distribuição das durações dos sinais de áudio.
-Para a classe Asthma (Asma), observa-se apenas uma amostra, com duração concentrada em aproximadamente 20 segundos. De forma semelhante, as classes Bronchiectasis (Bronquiectasia) e Bronchiolitis (Bronquiolite) apresentam, respectivamente, 16 e 13 amostras, todas concentradas na mesma duração.
-A classe COPD (Doença Pulmonar Obstrutiva Crônica) apresenta um comportamento significativamente diferente das demais, contendo mais de 700 amostras. Apesar de existir uma variação nas durações, aproximadamente entre 10 e 30 segundos, nota-se uma predominância expressiva de sinais próximos de 20 segundos, representando a maior parte das amostras dessa classe.
-Para a classe Healthy (Saudável), observa-se aproximadamente 30 amostras, também concentradas próximas de 20 segundos, com pequenas variações temporais inferiores a 0,2 segundos. Já a classe LRTI (Infecção do Trato Respiratório Superior) apresenta apenas duas amostras, ambas próximas de 20 segundos.
-Na classe Pneumonia (Pneumonia), observa-se cerca de 40 amostras concentradas em torno de 20 segundos de duração. Por fim, a classe URTI (Infecção do Trato Respiratório Inferior) apresenta aproximadamente 25 amostras próximas de 20 segundos, além de uma amostra com pequeno desvio temporal, em torno de 19,85 segundos.
-A partir dessa análise, é possível observar não apenas diferenças nas durações dos sinais entre algumas amostras, mas principalmente um forte desbalanceamento entre as classes do conjunto de dados. Enquanto determinadas categorias possuem poucas amostras disponíveis, a classe COPD concentra a maior parte do dataset. Esse desbalanceamento pode impactar diretamente o treinamento dos modelos de classificação, favorecendo classes majoritárias e dificultando a generalização para classes com menor representatividade. Dessa forma, torna-se importante considerar estratégias de balanceamento ou seleção criteriosa das amostras durante as etapas posteriores do projeto.
-
-Com o objetivo de garantir consistência entre as amostras, os sinais foram padronizados para uma taxa de amostragem de 18 kHz e duração fixa de 20 segundos. O pipeline de pré-processamento inclui:
-
--reamostragem dos sinais para 18 kHz;
--preenchimento com zeros para áudios com duração inferior ao alvo;
--truncamento para áudios com duração superior ao limite definido;
--normalização pela amplitude máxima.
-
-Essa padronização reduz a variabilidade estrutural entre as amostras e viabiliza a extração consistente de características acústicas.
-
-Após o pré-processamento, diferentes representações espectrais e temporais foram extraídas utilizando funções da biblioteca `Librosa`, incluindo:
-
-- Espectrograma em dB;
-- Mel Spectrogram;
-- MFCC;
-- MFCC Delta;
-- Chroma STFT;
-- Spectral Contrast;
-- Constant-Q Transform (CQT);
-- Espectrograma de Fase.
-
-Entre as representações extraídas, o **Mel Spectrogram** foi utilizado para visualização qualitativa dos padrões espectrais presentes nos sinais respiratórios.
-
-<img src="assets/preliminary_results/mel spectrogram.png" width="900">
-
-A análise do Mel Spectrogram evidencia diferenças entre os padrões respiratórios das patologias e o sinal considerado saudável. No caso do sinal Healthy (Saudável), observa-se uma distribuição espectral homogênea e contínua, com predominância de energia concentrada nas baixas frequências, comportamento esperado em ciclos respiratórios fisiológicos. Há menor presença de eventos impulsivos e menor variabilidade temporal, indicando estabilidade do fluxo aéreo pulmonar. Já nos sinais patológicos, percebe-se aumento da complexidade espectral e mudanças importantes na distribuição temporal da energia:
-
--Asthma apresenta regiões intermitentes de energia distribuídas em faixas específicas de frequência, compatíveis com a presença de sibilos. 
-
--Bronchiectasis mostra um padrão bastante energético e repetitivo ao longo do tempo, com estruturas verticais recorrentes e ampla ocupação espectral. 
-
--Bronchiolitis apresenta distribuição espectral mais difusa, com maior densidade de componentes em médias frequências. 
-
--LRTI exibe eventos esparsos de energia intensa, indicando comportamento acústico menos regular que o saudável. 
-
--Pneumonia apresenta regiões isoladas de alta intensidade espectral, além de maior espalhamento energético em frequências médias e baixas. 
-
--URTI mostra aumento moderado da atividade espectral e maior irregularidade temporal em comparação ao saudável, embora com menor complexidade que patologias pulmonais mais severas.
-
-No caso do COPD, observa-se um comportamento diferente dos demais. Parte do espectrograma contém atividade espectral normal do sinal respiratório, enquanto uma grande região escura aparece no restante da imagem. Isso ocorre devido ao zero padding aplicado durante o pré-processamento para padronizar todos os áudios em 20 segundos. Portanto, parte desse comportamento visual não está associada diretamente à doença, mas sim ao processo de padronização aplicado no dataset. Mesmo assim, na região correspondente ao áudio real, o COPD ainda apresenta um padrão mais irregular e fragmentado em comparação ao saudável, o que está de acordo com alterações respiratórias típicas da doença.
+| Feature        | InceptionV3 |                                            ResNet50 |                                         DenseNet121 |
+| -------------- | ----------: | --------------------------------------------------: | --------------------------------------------------: |
+| MagSTFT        |       0.615 | <span style="background-color:#C9A227">0.717</span> |                                               0.658 |
+| Phase          |       0.262 | <span style="background-color:#C9A227">0.338</span> |                                               0.335 |
+| MelSpectrogram |       0.609 |                                               0.702 | <span style="background-color:#C9A227">0.723</span> |
+| MFCC           |       0.702 |                                               0.671 | <span style="background-color:#2E8B57">0.745</span> |
+| MFCCDelta      |       0.545 |                                               0.560 | <span style="background-color:#C9A227">0.600</span> |
+| Chroma         |       0.455 |                                               0.440 | <span style="background-color:#C9A227">0.563</span> |
 
 
-### Resultados Preliminares
+* Tabela com os valores da métrica F1 Score Macro
 
-Realizando as etapas descritas na Metodologia e no Workflow, obteu-se os resultados das métricas de avaliação para as 8 transformações analisadas, conforme apresentadas nas tabelas abaixo (Para Download, as Tabelas completas e em gráfico exemplos das tabelas parciais):
+| Feature        |                                         InceptionV3 |                                            ResNet50 |                                         DenseNet121 |
+| -------------- | --------------------------------------------------: | --------------------------------------------------: | --------------------------------------------------: |
+| MagSTFT        |                                               0.463 | <span style="background-color:#C9A227">0.536</span> |                                               0.471 |
+| Phase          |                                               0.103 | <span style="background-color:#C9A227">0.160</span> |                                               0.115 |
+| MelSpectrogram |                                               0.480 | <span style="background-color:#C9A227">0.541</span> |                                               0.513 |
+| MFCC           |                                               0.539 |                                               0.482 | <span style="background-color:#2E8B57">0.617</span> |
+| MFCCDelta      | <span style="background-color:#C9A227">0.336</span> |                                               0.326 |                                               0.330 |
+| Chroma         | <span style="background-color:#C9A227">0.301</span> |                                               0.233 |                                               0.289 |
 
-| feature    | class          |   precision |   recall |   f1_score |   support |   accuracy_global |   precision_global |   recall_global |   f1_global |
-|:-----------|:---------------|------------:|---------:|-----------:|----------:|------------------:|-------------------:|----------------:|------------:|
-| phase      | Bronchiectasis |    1        | 0.333333 |   0.5      |         3 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
-| phase      | Bronchiolitis  |    0        | 0        |   0        |         3 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
-| phase      | COPD           |    0.856287 | 1        |   0.922581 |       143 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
-| phase      | Healthy        |    0        | 0        |   0        |         7 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
-| phase      | Pneumonia      |    0        | 0        |   0        |         7 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
-| phase      | URTI           |    0        | 0        |   0        |         5 |          0.857143 |           0.746721 |        0.857143 |    0.79422  |
+Nas tabelas acima, vemos que a DenseNet121 atingiu os dois melhores resultados considerando as duas métricas de avaliação. Além disso, ao comparar as matrizes de confusão de cada feature treinada utilizando a rede DenseNet121, vemos alguns resultados interessantes.
 
+![workflow](assets/Confusion_Matrices_6_Features.png)
 
-[Download results_ibchi.xlsx](assets/preliminary_results/results_icbhi.xlsx)
+De forma geral, as melhores features foram MagSTFT, MelSpectrogram e MFCC, indicando que essas representações preservam informações importantes relacionadas ao conteúdo espectral dos sinais respiratórios.
 
-| feature            | class          | precision | recall | f1_score | support | accuracy_global | precision_global | recall_global | f1_global |
-| ------------------ | -------------- | --------- | ------ | -------- | ------- | --------------- | ---------------- | ------------- | --------- |
-| phase              | Asthma         | 1.0000    | 0.5000 | 0.6667   | 4       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
-| phase              | Bronchiectasis | 1.0000    | 1.0000 | 1.0000   | 3       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
-| phase              | Bronchiolitis  | 0.0000    | 0.0000 | 0.0000   | 3       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
-| phase              | COPD           | 0.8854    | 0.9720 | 0.9267   | 143     | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
-| phase              | Healthy        | 0.4167    | 0.4167 | 0.4167   | 12      | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
-| phase              | Pneumonia      | 0.0000    | 0.0000 | 0.0000   | 7       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
-| phase              | URTI           | 0.0000    | 0.0000 | 0.0000   | 5       | 0.8418          | 0.7831           | 0.8418        | 0.8089    |
+Por outro lado, as features de fase da STFT e Chroma apresentaram desempenho inferior, com predições quase aleatórias. As matrizes de confusão sugerem que os modelos treinados com essas representações tendem a concentrar suas previsões nas classes mais frequentes do conjunto de dados, como COPD ou Healthy, resultando em baixa capacidade de generalização para as demais classes.
 
-[Download results_mixed.xlsx](assets/preliminary_results/results_mixed.xlsx)
+Além disso, observa-se que o MFCC apresentou os melhores resultados gerais, especialmente quando utilizado com a arquitetura DenseNet121.
+
+Dado o desempenho superior da DenseNet121 considerando a acurácia, e tendo o melhor modelo até agora, optamos por utilizá-la nas próximas análises.
 
 
-| feature     | class          | precision | recall | f1_score | support | accuracy_global | precision_global | recall_global | f1_global |
-| ----------- | -------------- | --------- | ------ | -------- | ------- | --------------- | ---------------- | ------------- | --------- |
-| phase       | Asthma         | 0.3864    | 0.3542 | 0.3696   | 48      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
-| phase       | Bronchiectasis | 0.0000    | 0.0000 | 0.0000   | 9       | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
-| phase       | Bronchiolitis  | 0.0000    | 0.0000 | 0.0000   | 8       | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
-| phase       | COPD           | 0.7822    | 0.9950 | 0.8758   | 397     | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
-| phase       | Healthy        | 0.4242    | 0.1867 | 0.2593   | 75      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
-| phase       | Pneumonia      | 0.0000    | 0.0000 | 0.0000   | 16      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
-| phase       | URTI           | 0.0000    | 0.0000 | 0.0000   | 22      | 0.7320          | 0.6201           | 0.7320        | 0.6613    |
+### Feature Combinadas
 
-[Download results_6sec.xlsx](assets/preliminary_results/results_6sec.xlsx)
+Após avaliar cada feature individualmente, foram realizados experimentos combinando diferentes representações do sinal. O objetivo é verificar se informações complementares podem ser exploradas simultaneamente pela rede neural, permitindo uma melhor caracterização dos sons pulmonares.
 
-Como pode-se observar na figura abaixo, a quantidade de amostras para a validação da classe COPD é muito superior as demais. Como a divisão entre treino e validação foi feito na proporção 80%-20%, isso implica que durante o treinamento o modelo também lida com muito mais dados da classe COPD do que de quaisquer outra classe, o que pode tornar o modelo enviesado a aprender apenas ela. Essa afirmação se fortalece ao analisar as métricas de avaliação por classe, conforme disposto nas Tabelas. Embora na média global o modelo se encontre com acurária em torno de 80% para as 8 transformações avaliadas, ao analisar os valores por classe vemos uma diferença substancial, e que predomina com valores equivalente apenas para classe de maior quantidade de amostras.
-![confusion_icbhi](assets/preliminary_results/confusion_icbhi.png)
+#### Resultados com a STFT
 
-Após adicionar mais amostras para as classes Asma, Pneumonia e saudável, a desigualdade amostral ainda continuou altamente presente. Com isso, o mesmo comportamente tendencioso para a classe COPD visto anteriormente se repete aqui, tanto ao analisar a matriz de confusão quanto observado nas métricas de avaliação por classe, dado a tabela.
-![confusion_mixed](assets/preliminary_results/confusion_mixed.png)
+Nesta etapa foram avaliadas três representações derivadas da STFT:
 
-Ao realizar o data-augmentation fazendo o clip dos audios em 6 segundos ao invés de mantê-los em 20 segundos como nos casos anteriores, observa-se alguns impactos significativos. Embora a desigualdade amostral permaneça, agora é possível observar que houve diferenças dos resultados entre as 8 transformações analisadas, ao invés de todas se manterem em torno de 80% de acurácia como nos casos anteriores.
-![confusion_6sec](assets/preliminary_results/confusion_6sec.png)
+- Magnitude da STFT (MagSTFT)
+- Magnitude e fase combinadas (MagSTFT + Phase)
+- Partes real e imaginária da STFT (RealSTFT + ImagSTFT)
 
-Sendo assim, é possível resumir os resultados como:
+Queremos investigar se informações adicionais da representação complexa da STFT podem contribuir para o desempenho do modelo.
 
-- Os resultados preliminares são baseados nos resultados obtidos a partir do treinamento de uma rede baseada na InceptionV3 via Transfer Learning. Os primeiros resultados dão-se utilizando como banco dados apenas as amostras do dataset nomeado ICBHI2017 e com as visualizações que partiram dos audios em 20 segundos. Posteriormente acrescentou-se amostras do dataset KAUH para as classes Saudável, Asma e Pneumonia, ainda com os audios em 20 segundos. O terceiro grupo de resultados deu-se utilizando agora o dataset composto pelos audios do ICBHI2017 e do KAUH, porém, sob a visualização dos clips em 6 segundos, o que aumentou consideravelmente o número de amostras por classe. A classe LRTI como apresentou poucas amostras, foi desconsiderada para o treinamento.
-- É possível observar a partir dos resultados obtidos para o caso 1 e o caso 2 que não houve discrepância significativa entre os resultados obtidos a partir das 8 transformações do sinal de audio. Todavia, o resultado, que se apresenta em torno de 80% de acurácia em todos os casos, é enviesado pela alta quantidade de amostras da classe COPD. As outras métricas, principalmente analisadas individualmente por cada classe, reforçam isso.
-- Destaca-se também a visualização "phase", onde se esperava que ela não seria relevante e não conteria informações que fosse possível caracterizar e diferenciar as doenças pulmonares, em contrapartida, o modelo de aprendizado de máquina foi capaz de utilizá-la e atingir resultados similares as demais análises.
-- Por outro lado, os resultados obtidos a partir das visualizações com um conjunto maior de amostras começa-se a perceber variações dos resultados entre as formas de visualizações, demonstrando que algumas têm maior capacidade de caracterização das doenças do que outras.
+| Métrica | MagSTFT | MagSTFT+Phase | ImagSTFT+RealSTFT |
+| -------- | ------: | --------------------------------------------------: | ----------------: |
+| F1 Macro |   <span style="background-color:#B8860B">0.471</span> | <span style="background-color:#2E8B22">0.578</span> |             0.454 |
+| F1 Micro |   <span style="background-color:#B8860B">0.658</span> | <span style="background-color:#2E8B22">0.738</span> |             0.600 |
 
-## Próximos passos
+Na tabela acima, estão marcados em verde e amarelo o melhor e o segundo melhor valores para as métricas, respectivamente. Os resultados mostram que a combinação entre magnitude e fase da STFT apresentou desempenho superior ao uso apenas da magnitude. Embora a fase isoladamente tenha apresentado resultados limitados nos experimentos anteriores, sua combinação com a magnitude parece fornecer informações complementares que podem auxiliar o processo de classificação.
 
-Nas etapas até aqui, as transformações do sinal original de audio (MFCC, melspectrogram, etc.) tem se mostrado eficazes para o uso em aprendizado de máquina e classificação das doenças pulmonares. O principal gargalo encontrado até o momento é o desbalanceamento das amostras por classe, o que torna o classificador enviesado. Sendo assim, um dos nossos próximos passos é justamente buscar alternativas para lidar com esse problema.
+Por outro lado, a representação baseada nas componentes real e imaginária da STFT apresentou desempenho inferior, sugerindo que a magnitude da STFT contém informações mais relevantes para caracterizar o sinal e sua doença respiratória.
 
-Além disso, aqui foram utilizadas imagens fictícias geradas a partir da biblioteca `librosa`, utilizando a função `librosa.display.specshow`, com armazenamento das imagens no formato .png. Essa abordagem permitiu tratar os espectrogramas como imagens convencionais, facilitando a integração com o tensorflow. No entanto, essa conversão introduz uma etapa adicional de renderização visual, dependente de fatores como resolução, interpolação e mapeamento de cores, fazendo com que a representação utilizada pelo modelo deixe de corresponder diretamente aos arrays numéricos originais gerados pelas transformadas. Por isso, pretendemos investigar o uso direto dos arrays numéricos, armazenados em formatos como .npy ou .pt, preservando diretamente os valores produzidos pelas operações espectrais.
+#### Resultados com MelSpectrogram + MFCC + Chroma
 
-Para além, também buscaremos comparar os resultados utilizando outros algoritmos de aprendizado de máquina.
+Nesta etapa foi avaliada a combinação de três representações amplamente utilizadas em tarefas de processamento de áudio:
+
+- MelSpectrogram
+- MFCC
+- Chroma
+
+Essa abordagem pode ser encontrada em vários trabalhos envolvendo este tipo de classificação, resultando, geralmente, em melhorarias significativas do desempenho do modelo. As três features foram empilhadas em 3 canais de entrada, o que permitiu simular uma imagem RGB.
+
+| Métrica  | MelSpectrogram |                                                MFCC | Chroma | MelSpectrogram+MFCC+Chroma |
+| -------- | -------------: | --------------------------------------------------: | -----: | -------------------------: |
+| F1 Macro |          0.513 | <span style="background-color:#2E8B22">0.617</span> |  0.289 |                      <span style="background-color:#B8860B">0.576</span> |
+| F1 Micro |          0.723 | <span style="background-color:#2E8B22">0.745</span> |  0.563 |                      <span style="background-color:#B8860B">0.732</span> |
+
+Os resultados mostram que a combinação das três features produziu resultados superiores ao uso isolado do MelSpectrogram e do Chroma. No entanto, a MFCC continuou apresentando os melhores resultados entre as representações avaliadas.
+
+#### Transfer Learning
+
+Por fim, aproveitando a imagem de 3 canais gerada pelo stack das features MelSpectrogram, MFCC e Chroma, foi avaliado o impacto do uso de transfer learning na tarefa de classificação, utilizando a rede DenseNet121 pré-treinada no conjunto ImageNet.
+
+A hipótese é que os pesos previamente aprendidos em grandes bases de imagens possam fornecer uma melhor inicialização para a rede, facilitando o aprendizado mesmo em um conjunto de dados relativamente pequeno. São comparados os resultados obtidos com treinamento do zero e com pesos pré-treinados.
+
+| Modelo | Feature | F1 Macro | F1 Micro |
+|---------|---------|---------:|---------:|
+| DenseNet121 | MelSpectrogram + MFCC + Chroma | <span style="background-color:#228B22">0.576</span> | <span style="background-color:#228B22">0.732</span> |
+| DenseNet121 (Pré-treinada) | MelSpectrogram + MFCC + Chroma | 0.547 | 0.702 |
+
+Os resultados indicam que o uso de pesos pré-treinados não trouxe ganhos de desempenho neste experimento. Tanto o F1 Macro quanto o F1 Micro apresentaram valores inferiores quando comparados ao modelo treinado do zero.
+
+## Discussão
+
+Os resultados obtidos mostram que a escolha da representação do sinal possui impacto tão importante quanto a escolha da arquitetura de rede neural.
+
+As representações baseadas em conteúdo espectral (MFCC, MelSpectrogram e MagSTFT) apresentaram desempenho significativamente superiores às representações de Phase ou Chroma. Isso sugere que as características das doenças respiratórias estão fortemente associadas à distribuição espectral da energia do sinal.
+
+Analisando o melhor modelo encontrado, referente à DenseNet121 com MFCC, vemos que há disparidades de desempenho entre as classes. Em especial, observamos que a classe COPD possui um dos melhores desempenhos, alcançando quase 0.90 na métrica F1 Score. Em contrapartida, classes minoritárias como Bronchiolitis, URTI e Lung Fibrosis apresentaram os priores desempenhos. Destaca-se que nenhum dos modelos conseguiu prever corretamente nenhuma ocorrência da classe Lung Fibrosis. Isso reflete o desbalanceamento do dataset, já que, mesmo com as estratégias de oversampling, a disparidade entre as classes ainda é significativa.
+
+![workflow](assets/densenet121_MFCC_F1_scores_per_Class.png)
+
+Um resultado interessante foi o desempenho inferior da InceptionV3 em comparação com ResNet50 e DenseNet121. Isso porque alguns trabalhos que utilizam sinais respiratórios em formato 1D reportam bons resultados com arquiteturas derivadas da família Inception. Nossos experimentos podem indicar que a eficácia de uma arquitetura depende da representação escolhida para os dados, mostrando que bons resultados em sinais 1D não necessariamente se traduzem para representações 2D em tempo e frequência.
+
+Outro achado importante foi que a combinação de magnitude e fase da STFT superou o uso isolado da magnitude. Isso sugere que informações frequentemente descartadas durante o pré-processamento podem conter conteúdo complementar relevante para a classificação.
+
+Também vimos que o transfer learning não trouxe ganhos de desempenho. Uma possível explicação é a diferença significativa entre imagens naturais do ImageNet e espectrogramas de sinais respiratórios. Além disso, não foi aplicada uma estratégia específica de normalização compatível com o processo de pré-treinamento, o que pode ter limitado a transferência do conhecimento aprendido. Apesar disso, o resultado não descarta o uso de transfer learning em outros cenários, especialmente com conjuntos de dados maiores, com maior data augmentation ou modelos pré-treinados em tarefas mais próximas do domínio de áudio.
+
+Por fim, observamos que nossos resultados apresentam desempenhos um pouco inferiores aos reportados nas referências para este trabalho [4-5]. Em nossa breve revisão exploratória, encontramos métricas de acurácia acima de 90% reportadas em alguns trabalhos. Embora surpreendentes, muitos estudos não descrevem detalhadamente como foi realizado o particionamento entre treino, validação e teste. Em tarefas médicas, essa etapa é crítica, pois divisões inadequadas podem introduzir vazamento de dados entre pacientes, permitindo que o modelo aprenda características específicas dos indivíduos em vez dos padrões associados às doenças. Este comportamento compromete os resultados, que podem se tornar inflados ou enviesados.
+
+Além dessa questão, nosso desempenho pode ser explicado pelas nossas limitações dos experimentos:
+
+- Quantidade limitada de amostras para algumas classes.
+- Estratégias pouco expressivas de data augmentation.
+- Ausência de normalização específica dos espectrogramas.
+
+Esses fatores podem ter restringido a capacidade de generalização dos modelos treinados.
+
+## Conclusão
+
+Neste trabalho investigamos a classificação automática de doenças respiratórias a partir de sons pulmonares utilizando diferentes representações espectrais e arquiteturas convolucionais.
+
+Os resultados mostraram que:
+
+- MFCC foi a representação individual mais eficaz.
+- DenseNet121 apresentou o melhor desempenho geral.
+- A combinação entre magnitude e fase da STFT produziu ganhos relevantes.
+- Transfer learning com pesos ImageNet não trouxe melhorias.
+- A InceptionV3, embora seja utilizada no contexto de áudios, apresentou desempenho inferior às demais arquiteturas avaliadas.
+
+
+Além dos resultados obtidos, o projeto permitiu compreender a influência da representação dos sinais, das estratégias de treinamento e dos cuidados necessários para evitar vieses em aplicações de aprendizado profundo voltadas para diagnóstico assistido por computador.
+
+## Trabalhos Futuros
+
+Diversas extensões podem ser exploradas em trabalhos futuros:
+
+- Avaliar técnicas adicionais de data augmentation para sinais respiratórios.
+- Investigar estratégias específicas de normalização dos espectrogramas.
+- Utilizar mais datasets para aumentar a diversidade e robustez do treinamento.
+- Explorar arquiteturas mais recentes e customizadas para áudio.
+- Explorar os hiperparâmetros.
+- Avaliar modelos pré-treinados em tarefas de áudio, em vez de modelos treinados em imagens naturais.
+- Avaliar possíveis vieses dos modelos entre subgrupos populacionais, considerando sexo e idade dos pacientes, por exemplo.
+- Realizar estudos de explicabilidade para identificar quais regiões dos espectrogramas mais influenciam as decisões do modelo.
 
 ## Uso de IA Generativa
 
-Utilizou-se a IA para auxílio em comandos do markdown, bem como em ajustes de código.
+Utilizou-se IA generativa como apoio em comandos de markdown, ajustes de código e na reorganização e complementação da documentação deste README, a partir do conteúdo já presente nos notebooks do projeto.
+
+A respeito da geração de códigos, foram utilizados prompts como:
+
+- "A partir do dataframe contendo as informações dos datasets, crie uma função para criar uma visualização da distribuição dos áudios, das classes e dos atributos demográficos."
+- "Crie um código que gere plots de matrizes de confusão por experimento. Cada imagem deve conter uma comparação de vários modelos para um determinado tipo de feature."
 
 ## Referências
 
-1. FRAIWAN, Mohammad; FRAIWAN, Luay; KHASSAWNEH, Basheer; IBNIAN, Ali.  
-   *A dataset of lung sounds recorded from the chest wall using an electronic stethoscope*.  
-   Data in Brief, v. 35, p. 106913, 2021.  
+1. https://www.who.int/health-topics/chronic-respiratory-diseases
+
+2. FRAIWAN, Mohammad; FRAIWAN, Luay; KHASSAWNEH, Basheer; IBNIAN, Ali.
+   *A dataset of lung sounds recorded from the chest wall using an electronic stethoscope*.
+   Data in Brief, v. 35, p. 106913, 2021.
    DOI: https://doi.org/10.1016/j.dib.2021.106913
 
-2. ROCHA, Bruno M. et al.  
-   *An open access database for the evaluation of respiratory sound classification algorithms*.  
-   Physiological Measurement, v. 40, n. 3, p. 035001, 2019.  
+3. ROCHA, Bruno M. et al.
+   *An open access database for the evaluation of respiratory sound classification algorithms*.
+   Physiological Measurement, v. 40, n. 3, p. 035001, 2019.
    DOI: https://doi.org/10.1088/1361-6579/ab03ea
 
-3. WANASINGHE, Thinira; BANDARA, Sakuni; MADUSANKA, Supun; MEEDENIYA, Dulani Apeksha; BANDARA, Meelan; DE LA TORRE DÍEZ, Isabel.  
-   *Lung Sound Classification With Multi-Feature Integration Utilizing Lightweight CNN Model*.  
+4. WANASINGHE, Thinira; BANDARA, Sakuni; MADUSANKA, Supun; MEEDENIYA, Dulani Apeksha; BANDARA, Meelan; DE LA TORRE DÍEZ, Isabel.
+   *Lung Sound Classification With Multi-Feature Integration Utilizing Lightweight CNN Model*.
    IEEE Access, v. 12, p. 21262–21276, 2024.
 
-4. PARK, Jinho et al.  
-   *Lung Sound Classification Model for On-Device AI*.  
+5. PARK, Jinho et al.
+   *Lung Sound Classification Model for On-Device AI*.
    Applied Sciences, v. 15, n. 17, p. 9361, 2025.
 
-5. MCFEE, Brian et al. librosa/librosa: 0.10. 0. zenodo, 2023.
+6. MCFEE, Brian et al. librosa/librosa: 0.10. 0. zenodo, 2023.
