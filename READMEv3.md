@@ -213,6 +213,49 @@ Este projeto foi desenvolvido principalmente em Python, com a maior parte da exp
 
 Utilizou-se IA generativa como apoio em comandos de markdown, ajustes de código e na reorganização e complementação da documentação deste README, a partir do conteúdo já presente nos notebooks do projeto.
 
+Exemplos de prompts:
+
+- Formatação em Markdown
+Prompt: "Converta esse texto para markdown formatado para README do GitHub, com título e subtítulos:"
+
+
+- Revisão de texto técnico
+Prompt: "Esse parágrafo está claro o suficiente para um README técnico? Sugira melhorias sem mudar o conteúdo:"
+
+## Ambiente Python
+
+#### Conda
+
+Crie e ative o ambiente Conda a partir do `environment/conda.yaml`:
+
+```bash
+conda env create -f environment/conda.yaml
+conda activate lung_sounds
+```
+
+Para atualizar:
+
+```bash
+conda env update -f environment/conda.yaml --prune
+```
+
+### Venv
+
+Ou use um ambiente virtual Python padrão (`venv`):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+> **Note on GPU/CUDA compatibility:**
+> Nota sobre compatibilidade GPU/CUDA:
+
+Se você pretende treinar modelos em GPU e a versão do PyTorch for incompatível com a versão do CUDA do seu sistema, será necessário atualizar ou reinstalar o PyTorch.
+> Consulte o [Official PyTorch Start Guide](https://pytorch.org/get-started/locally/) para encontrar o comando de instalação exato para o seu sistema.
+
 ## Referências
 
 1. FRAIWAN, Mohammad; FRAIWAN, Luay; KHASSAWNEH, Basheer; IBNIAN, Ali.
